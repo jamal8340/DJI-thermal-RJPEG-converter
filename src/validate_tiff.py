@@ -1,107 +1,156 @@
 import json
-import tifffile
 from pathlib import Path
 
+import numpy as np
+import tifffile
 
-if __name__ == "__main__":
-    base_dir = Path(__file__).resolve().parent.parent
-    output_dir = base_dir / "data" / "output"
 
-    tiff_files = list(output_dir.glob("*.tif"))
+REQUIRED_XMP_FIELDS = [
+    "GpsLatitude",
+    "GpsLongitude",
+    "AbsoluteAltitude",
+    "RelativeAltitude",
+    "GimbalRollDegree",
+    "GimbalYawDegree",
+    "GimbalPitchDegree",
+    "FlightRollDegree",
+    "FlightYawDegree",
+    "FlightPitchDegree",
+    "UTCAtExposure",
+    "CameraSerialNumber",
+    "DroneSerialNumber",
+]
 
-    if not tiff_files:
-        print("Brak plików TIFF w data/output.")
-        raise SystemExit
+REQUIRED_RADIOMETRY_FIELDS = [
+    "distance",
+    "humidity",
+    "emissivity",
+    "reflection",
+    "ambient_temp",
+]
 
-    for tiff_path in tiff_files:
-        print(f"\nSprawdzam: {tiff_path.name}")
 
+def validate_tiff(tiff_path):
+    errors = []
+
+    try:
         with tifffile.TiffFile(tiff_path) as tif:
             page = tif.pages[0]
             data = page.asarray()
 
-            # --- Standardowe tagi TIFF ---
-            print("\nStandardowe tagi TIFF:")
+            # Raster
+            if data.ndim != 2:
+                errors.append(f"Raster nie jest jednopasmowy: ndim={data.ndim}")
 
+            if data.dtype != np.float32:
+                errors.append(f"Niepoprawny typ danych: {data.dtype}")
+
+            if data.shape != (512, 640):
+                errors.append(f"Nieoczekiwany rozmiar: {data.shape}")
+
+            if not np.isfinite(data).all():
+                errors.append("Raster zawiera NaN lub Inf")
+
+            # Standardowe tagi TIFF
             for tag_name in ["Make", "Model", "DateTime"]:
-                tag = page.tags.get(tag_name)
+                if page.tags.get(tag_name) is None:
+                    errors.append(f"Brak standardowego tagu TIFF: {tag_name}")
 
-                if tag:
-                    print(f"{tag_name}: {tag.value}")
-                else:
-                    print(f"{tag_name}: BRAK")
-
-            # --- Dane rastra ---
-            print("\nRaster temperatury:")
-            print(f"Rozmiar: {data.shape}")
-            print(f"Typ danych: {data.dtype}")
-            print(f"Min temperatura: {data.min():.2f} °C")
-            print(f"Max temperatura: {data.max():.2f} °C")
-
-            # --- Metadane JSON zapisane w ImageDescription ---
+            # ImageDescription / JSON
             description = page.description
 
             if not description:
-                print("\nBŁĄD: Brak ImageDescription.")
-                continue
+                errors.append("Brak ImageDescription")
+                return errors
 
             try:
                 metadata = json.loads(description)
-
             except json.JSONDecodeError:
-                print("\nBŁĄD: ImageDescription nie jest poprawnym JSON-em.")
-                continue
+                errors.append("ImageDescription nie jest poprawnym JSON-em")
+                return errors
 
-            # --- Radiometria ---
+            # Temperatura
+            temperature = metadata.get("temperature", {})
+
+            if temperature.get("unit") != "Celsius":
+                errors.append("Brak lub błędna jednostka temperatury")
+
+            if temperature.get("data_type") != "float32":
+                errors.append("Brak lub błędny data_type temperatury")
+
+            # Radiometria
             radiometry = metadata.get("radiometry", {})
 
-            print("\nRadiometria:")
-            print(json.dumps(
-                radiometry,
-                indent=2,
-                ensure_ascii=False
-            ))
+            for field in REQUIRED_RADIOMETRY_FIELDS:
+                if radiometry.get(field) is None:
+                    errors.append(f"Brak radiometrii: {field}")
 
-            # --- EXIF ---
+            # Source metadata
             source_metadata = metadata.get("source_metadata", {})
+
             exif = source_metadata.get("exif", {})
-
-            print("\nEXIF:")
-            print(json.dumps(
-                exif,
-                indent=2,
-                ensure_ascii=False
-            ))
-
-            # --- DJI XMP ---
             dji_xmp = source_metadata.get("dji_xmp", {})
 
-            print("\nDJI XMP:")
-            print(json.dumps(
-                dji_xmp,
-                indent=2,
-                ensure_ascii=False
-            ))
+            if not exif:
+                errors.append("Brak EXIF")
 
-            # --- Skrócona kontrola najważniejszych danych ---
-            print("\nNajważniejsze dane:")
+            if not dji_xmp:
+                errors.append("Brak DJI XMP")
 
-            print(f"GPS Latitude: {dji_xmp.get('GpsLatitude', 'BRAK')}")
-            print(f"GPS Longitude: {dji_xmp.get('GpsLongitude', 'BRAK')}")
-            print(f"Absolute Altitude: {dji_xmp.get('AbsoluteAltitude', 'BRAK')}")
-            print(f"Relative Altitude: {dji_xmp.get('RelativeAltitude', 'BRAK')}")
+            # Najważniejsze pola DJI
+            for field in REQUIRED_XMP_FIELDS:
+                value = dji_xmp.get(field)
 
-            print(f"Gimbal Roll: {dji_xmp.get('GimbalRollDegree', 'BRAK')}")
-            print(f"Gimbal Yaw: {dji_xmp.get('GimbalYawDegree', 'BRAK')}")
-            print(f"Gimbal Pitch: {dji_xmp.get('GimbalPitchDegree', 'BRAK')}")
+                if value is None or value == "":
+                    errors.append(f"Brak DJI XMP: {field}")
 
-            print(f"Flight Roll: {dji_xmp.get('FlightRollDegree', 'BRAK')}")
-            print(f"Flight Yaw: {dji_xmp.get('FlightYawDegree', 'BRAK')}")
-            print(f"Flight Pitch: {dji_xmp.get('FlightPitchDegree', 'BRAK')}")
+    except Exception as exc:
+        errors.append(f"Błąd odczytu TIFF: {exc}")
 
-            print(f"UTC At Exposure: {dji_xmp.get('UTCAtExposure', 'BRAK')}")
-            print(f"Camera Serial: {dji_xmp.get('CameraSerialNumber', 'BRAK')}")
-            print(f"Drone Serial: {dji_xmp.get('DroneSerialNumber', 'BRAK')}")
+    return errors
 
-            print("\nWalidacja zakończona.")
-            print("-" * 50)
+
+def main():
+    base_dir = Path(__file__).resolve().parent.parent
+    output_dir = base_dir / "data" / "output"
+
+    tiff_files = sorted(output_dir.glob("*.tif"))
+
+    if not tiff_files:
+        print("Brak plików TIFF w data/output.")
+        return
+
+    pass_count = 0
+    fail_count = 0
+
+    print(f"Walidacja {len(tiff_files)} plików TIFF...\n")
+
+    for tiff_path in tiff_files:
+        errors = validate_tiff(tiff_path)
+
+        if not errors:
+            print(f"[PASS] {tiff_path.name}")
+            pass_count += 1
+
+        else:
+            print(f"[FAIL] {tiff_path.name}")
+
+            for error in errors:
+                print(f"       - {error}")
+
+            fail_count += 1
+
+    print("\n" + "=" * 50)
+    print("PODSUMOWANIE WALIDACJI")
+    print(f"PASS:  {pass_count}")
+    print(f"FAIL:  {fail_count}")
+    print(f"RAZEM: {len(tiff_files)}")
+
+    if fail_count == 0:
+        print("\nOK - wszystkie TIFF-y przeszły walidację.")
+    else:
+        print("\nUWAGA - część TIFF-ów wymaga sprawdzenia.")
+
+
+if __name__ == "__main__":
+    main()
