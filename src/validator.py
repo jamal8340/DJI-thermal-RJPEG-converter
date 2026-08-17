@@ -1,3 +1,4 @@
+import csv
 import json
 from pathlib import Path
 
@@ -5,14 +6,19 @@ import numpy as np
 import tifffile
 
 
+# Te pola traktujemy jako krytyczne dla naszego workflow / Metashape.
 REQUIRED_XMP_FIELDS = [
     "GpsLatitude",
     "GpsLongitude",
     "AbsoluteAltitude",
-    "RelativeAltitude",
-    "GimbalRollDegree",
     "GimbalYawDegree",
     "GimbalPitchDegree",
+    "GimbalRollDegree",
+]
+
+# Ich brak nie unieważnia TIFF-a.
+OPTIONAL_XMP_FIELDS = [
+    "RelativeAltitude",
     "FlightRollDegree",
     "FlightYawDegree",
     "FlightPitchDegree",
@@ -32,78 +38,114 @@ REQUIRED_RADIOMETRY_FIELDS = [
 
 def validate_tiff(tiff_path):
     """
-    Waliduje pojedynczy plik TIFF.
+    Waliduje pojedynczy TIFF.
 
-    Zwraca listę błędów.
-    Pusta lista oznacza poprawny plik.
+    Zwraca:
+    {
+        "status": "PASS" | "WARNING" | "FAIL",
+        "errors": [...],
+        "warnings": [...]
+    }
     """
 
     tiff_path = Path(tiff_path)
+
     errors = []
+    warnings = []
 
     if not tiff_path.exists():
-        return [
-            f"Plik TIFF nie istnieje: {tiff_path}"
-        ]
+        return {
+            "status": "FAIL",
+            "errors": [
+                f"Plik TIFF nie istnieje: {tiff_path}"
+            ],
+            "warnings": [],
+        }
 
     try:
         with tifffile.TiffFile(tiff_path) as tif:
             if len(tif.pages) == 0:
-                return [
-                    "TIFF nie zawiera żadnej strony."
-                ]
+                return {
+                    "status": "FAIL",
+                    "errors": [
+                        "TIFF nie zawiera żadnej strony."
+                    ],
+                    "warnings": [],
+                }
 
             page = tif.pages[0]
             data = page.asarray()
 
-            # Raster musi być jednopasmowy.
+            # ---------------------------------
+            # RASTER
+            # ---------------------------------
+
             if data.ndim != 2:
                 errors.append(
                     f"Raster nie jest jednopasmowy: ndim={data.ndim}"
                 )
 
-            # Temperatura powinna być Float32.
             if data.dtype != np.float32:
                 errors.append(
                     f"Niepoprawny typ danych: {data.dtype}"
                 )
 
-            # Nie akceptujemy NaN ani Inf.
             if not np.isfinite(data).all():
                 errors.append(
                     "Raster zawiera NaN lub Inf."
                 )
 
-            # Standardowe tagi TIFF.
+            # ---------------------------------
+            # STANDARDOWE TAGI TIFF
+            # ---------------------------------
+
             for tag_name in [
                 "Make",
                 "Model",
                 "DateTime",
             ]:
                 if page.tags.get(tag_name) is None:
-                    errors.append(
+                    warnings.append(
                         f"Brak standardowego tagu TIFF: {tag_name}"
                     )
 
-            # Pełne metadane zapisane jako JSON.
+            # ---------------------------------
+            # NASZE METADATA JSON
+            # ---------------------------------
+
             description = page.description
 
             if not description:
                 errors.append(
                     "Brak ImageDescription."
                 )
-                return errors
+
+                return {
+                    "status": "FAIL",
+                    "errors": errors,
+                    "warnings": warnings,
+                }
 
             try:
-                metadata = json.loads(description)
+                metadata = json.loads(
+                    description
+                )
 
             except json.JSONDecodeError:
                 errors.append(
                     "ImageDescription nie jest poprawnym JSON-em."
                 )
-                return errors
 
-            # Dane temperatury.
+                return {
+                    "status": "FAIL",
+                    "errors": errors,
+                    "warnings": warnings,
+                }
+
+            # ---------------------------------
+            # TEMPERATURA
+            # ---------------------------------
+
             temperature = metadata.get(
                 "temperature",
                 {}
@@ -119,8 +161,13 @@ def validate_tiff(tiff_path):
                     "Niepoprawny lub brakujący data_type."
                 )
 
-            expected_width = temperature.get("width")
-            expected_height = temperature.get("height")
+            expected_width = temperature.get(
+                "width"
+            )
+
+            expected_height = temperature.get(
+                "height"
+            )
 
             if (
                 expected_width is None
@@ -138,14 +185,22 @@ def validate_tiff(tiff_path):
 
                 if data.shape != expected_shape:
                     errors.append(
-                        f"Niezgodny rozmiar rastra: "
+                        f"Niezgodny rozmiar: "
                         f"{data.shape}, "
                         f"oczekiwano {expected_shape}."
                     )
 
-            # Sprawdzenie min/max temperatury.
-            metadata_min = temperature.get("min")
-            metadata_max = temperature.get("max")
+            # ---------------------------------
+            # MIN / MAX
+            # ---------------------------------
+
+            metadata_min = temperature.get(
+                "min"
+            )
+
+            metadata_max = temperature.get(
+                "max"
+            )
 
             if metadata_min is None:
                 errors.append(
@@ -177,7 +232,10 @@ def validate_tiff(tiff_path):
                     "nie zgadza się z metadanymi."
                 )
 
-            # Radiometria.
+            # ---------------------------------
+            # RADIOMETRIA
+            # ---------------------------------
+
             radiometry = metadata.get(
                 "radiometry",
                 {}
@@ -189,7 +247,10 @@ def validate_tiff(tiff_path):
                         f"Brak radiometrii: {field}"
                     )
 
-            # EXIF + DJI XMP.
+            # ---------------------------------
+            # EXIF / DJI XMP
+            # ---------------------------------
+
             source_metadata = metadata.get(
                 "source_metadata",
                 {}
@@ -206,8 +267,8 @@ def validate_tiff(tiff_path):
             )
 
             if not exif:
-                errors.append(
-                    "Brak EXIF."
+                warnings.append(
+                    "Brak EXIF w metadanych źródłowych."
                 )
 
             if not dji_xmp:
@@ -215,63 +276,185 @@ def validate_tiff(tiff_path):
                     "Brak DJI XMP."
                 )
 
-            for field in REQUIRED_XMP_FIELDS:
-                value = dji_xmp.get(field)
-
-                if value is None or value == "":
-                    errors.append(
-                        f"Brak DJI XMP: {field}"
+            else:
+                # Krytyczne pola
+                for field in REQUIRED_XMP_FIELDS:
+                    value = dji_xmp.get(
+                        field
                     )
+
+                    if value is None or value == "":
+                        errors.append(
+                            f"Brak wymaganego DJI XMP: {field}"
+                        )
+
+                # Pola opcjonalne
+                for field in OPTIONAL_XMP_FIELDS:
+                    value = dji_xmp.get(
+                        field
+                    )
+
+                    if value is None or value == "":
+                        warnings.append(
+                            f"Brak opcjonalnego DJI XMP: {field}"
+                        )
 
     except Exception as exc:
         errors.append(
             f"Błąd odczytu TIFF: {exc}"
         )
 
-    return errors
+    if errors:
+        status = "FAIL"
+
+    elif warnings:
+        status = "WARNING"
+
+    else:
+        status = "PASS"
+
+    return {
+        "status": status,
+        "errors": errors,
+        "warnings": warnings,
+    }
 
 
 def validate_files(tiff_paths):
     """
     Waliduje listę TIFF-ów.
-
-    Zwraca podsumowanie:
-    passed, failed, total oraz szczegóły.
     """
 
     results = []
 
     passed = 0
+    warnings_count = 0
     failed = 0
 
     for tiff_path in tiff_paths:
-        tiff_path = Path(tiff_path)
-
-        errors = validate_tiff(
+        tiff_path = Path(
             tiff_path
         )
 
-        if errors:
-            failed += 1
+        validation = validate_tiff(
+            tiff_path
+        )
 
-            results.append({
-                "file": str(tiff_path),
-                "valid": False,
-                "errors": errors,
-            })
+        status = validation[
+            "status"
+        ]
 
-        else:
+        errors = validation[
+            "errors"
+        ]
+
+        warnings = validation[
+            "warnings"
+        ]
+
+        if status == "PASS":
             passed += 1
 
-            results.append({
-                "file": str(tiff_path),
-                "valid": True,
-                "errors": [],
-            })
+        elif status == "WARNING":
+            warnings_count += 1
+
+        else:
+            failed += 1
+
+        results.append({
+            "file": str(tiff_path),
+            "filename": tiff_path.name,
+            "valid": status != "FAIL",
+            "status": status,
+            "errors": errors,
+            "warnings": warnings,
+        })
 
     return {
         "passed": passed,
+        "warnings": warnings_count,
         "failed": failed,
         "total": len(results),
         "results": results,
     }
+
+
+def save_validation_report(
+    validation_result,
+    report_path
+):
+    """
+    Zapisuje validation_report.csv.
+    """
+
+    report_path = Path(
+        report_path
+    )
+
+    report_path.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    with report_path.open(
+        "w",
+        newline="",
+        encoding="utf-8-sig"
+    ) as csv_file:
+
+        writer = csv.DictWriter(
+            csv_file,
+            fieldnames=[
+                "filename",
+                "status",
+                "error_count",
+                "warning_count",
+                "errors",
+                "warnings",
+            ]
+        )
+
+        writer.writeheader()
+
+        for result in validation_result[
+            "results"
+        ]:
+            errors = result.get(
+                "errors",
+                []
+            )
+
+            warnings = result.get(
+                "warnings",
+                []
+            )
+
+            writer.writerow({
+                "filename": result.get(
+                    "filename",
+                    ""
+                ),
+
+                "status": result.get(
+                    "status",
+                    ""
+                ),
+
+                "error_count": len(
+                    errors
+                ),
+
+                "warning_count": len(
+                    warnings
+                ),
+
+                "errors": " | ".join(
+                    errors
+                ),
+
+                "warnings": " | ".join(
+                    warnings
+                ),
+            })
+
+    return report_path

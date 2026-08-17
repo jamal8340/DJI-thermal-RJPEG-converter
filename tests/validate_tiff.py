@@ -1,237 +1,64 @@
-import json
+﻿import sys
 from pathlib import Path
 
-import numpy as np
-import tifffile
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
 
+sys.path.insert(0, str(SRC_DIR))
 
-REQUIRED_XMP_FIELDS = [
-    "GpsLatitude",
-    "GpsLongitude",
-    "AbsoluteAltitude",
-    "RelativeAltitude",
-    "GimbalRollDegree",
-    "GimbalYawDegree",
-    "GimbalPitchDegree",
-    "FlightRollDegree",
-    "FlightYawDegree",
-    "FlightPitchDegree",
-    "UTCAtExposure",
-    "CameraSerialNumber",
-    "DroneSerialNumber",
-]
-
-REQUIRED_RADIOMETRY_FIELDS = [
-    "distance",
-    "humidity",
-    "emissivity",
-    "reflection",
-    "ambient_temp",
-]
-
-
-def validate_tiff(tiff_path):
-    errors = []
-
-    try:
-        with tifffile.TiffFile(tiff_path) as tif:
-            page = tif.pages[0]
-            data = page.asarray()
-
-            # --- Raster ---
-            if data.ndim != 2:
-                errors.append(
-                    f"Raster nie jest jednopasmowy: ndim={data.ndim}"
-                )
-
-            if data.dtype != np.float32:
-                errors.append(
-                    f"Niepoprawny typ danych: {data.dtype}"
-                )
-
-            if not np.isfinite(data).all():
-                errors.append(
-                    "Raster zawiera NaN lub Inf"
-                )
-
-            # --- Standardowe tagi TIFF ---
-            for tag_name in ["Make", "Model", "DateTime"]:
-                if page.tags.get(tag_name) is None:
-                    errors.append(
-                        f"Brak standardowego tagu TIFF: {tag_name}"
-                    )
-
-            # --- ImageDescription ---
-            description = page.description
-
-            if not description:
-                errors.append("Brak ImageDescription")
-                return errors
-
-            try:
-                metadata = json.loads(description)
-            except json.JSONDecodeError:
-                errors.append(
-                    "ImageDescription nie jest poprawnym JSON-em"
-                )
-                return errors
-
-            # --- Informacje o temperaturze ---
-            temperature = metadata.get("temperature", {})
-
-            if temperature.get("unit") != "Celsius":
-                errors.append(
-                    "Brak lub błędna jednostka temperatury"
-                )
-
-            if temperature.get("data_type") != "float32":
-                errors.append(
-                    "Brak lub błędny data_type temperatury"
-                )
-
-            expected_width = temperature.get("width")
-            expected_height = temperature.get("height")
-
-            if expected_width is None or expected_height is None:
-                errors.append(
-                    "Brak wymiarów obrazu w metadanych"
-                )
-            else:
-                expected_shape = (
-                    int(expected_height),
-                    int(expected_width)
-                )
-
-                if data.shape != expected_shape:
-                    errors.append(
-                        f"Niezgodny rozmiar rastra: "
-                        f"{data.shape}, oczekiwano {expected_shape}"
-                    )
-
-            # --- Kontrola min/max ---
-            metadata_min = temperature.get("min")
-            metadata_max = temperature.get("max")
-
-            if metadata_min is not None:
-                if not np.isclose(
-                    float(data.min()),
-                    float(metadata_min),
-                    atol=1e-5
-                ):
-                    errors.append(
-                        "Minimalna temperatura nie zgadza się "
-                        "z metadanymi"
-                    )
-
-            if metadata_max is not None:
-                if not np.isclose(
-                    float(data.max()),
-                    float(metadata_max),
-                    atol=1e-5
-                ):
-                    errors.append(
-                        "Maksymalna temperatura nie zgadza się "
-                        "z metadanymi"
-                    )
-
-            # --- Radiometria ---
-            radiometry = metadata.get("radiometry", {})
-
-            for field in REQUIRED_RADIOMETRY_FIELDS:
-                if radiometry.get(field) is None:
-                    errors.append(
-                        f"Brak radiometrii: {field}"
-                    )
-
-            # --- Source metadata ---
-            source_metadata = metadata.get(
-                "source_metadata",
-                {}
-            )
-
-            exif = source_metadata.get("exif", {})
-            dji_xmp = source_metadata.get("dji_xmp", {})
-
-            if not exif:
-                errors.append("Brak EXIF")
-
-            if not dji_xmp:
-                errors.append("Brak DJI XMP")
-
-            # --- Najważniejsze pola DJI XMP ---
-            for field in REQUIRED_XMP_FIELDS:
-                value = dji_xmp.get(field)
-
-                if value is None or value == "":
-                    errors.append(
-                        f"Brak DJI XMP: {field}"
-                    )
-
-    except Exception as exc:
-        errors.append(
-            f"Błąd odczytu TIFF: {exc}"
-        )
-
-    return errors
+from validator import validate_files
 
 
 def main():
-    base_dir = Path(__file__).resolve().parent.parent
-    output_dir = base_dir / "data" / "output"
+    output_dir = PROJECT_ROOT / "data" / "output"
 
-    tiff_files = sorted(
-        output_dir.glob("*.tif")
-    )
+    tiff_files = sorted([
+        path
+        for path in output_dir.iterdir()
+        if path.is_file()
+        and path.suffix.lower() in {".tif", ".tiff"}
+    ])
 
     if not tiff_files:
-        print(
-            "Brak plików TIFF w data/output."
-        )
+        print("Brak plików TIFF.")
         return
 
-    pass_count = 0
-    fail_count = 0
+    print(f"Walidacja {len(tiff_files)} plików TIFF...\n")
 
-    print(
-        f"Walidacja {len(tiff_files)} plików TIFF...\n"
-    )
+    validation = validate_files(tiff_files)
 
-    for tiff_path in tiff_files:
-        errors = validate_tiff(tiff_path)
+    for result in validation["results"]:
+        print(f"[{result['status']}] {result['filename']}")
 
-        if not errors:
-            print(
-                f"[PASS] {tiff_path.name}"
-            )
-            pass_count += 1
+        for error in result.get("errors", []):
+            print(f"    ERROR: {error}")
 
-        else:
-            print(
-                f"[FAIL] {tiff_path.name}"
-            )
+        for warning in result.get("warnings", []):
+            print(f"    WARNING: {warning}")
 
-            for error in errors:
-                print(
-                    f"       - {error}"
-                )
-
-            fail_count += 1
-
-    print("\n" + "=" * 50)
+    print()
+    print("=" * 50)
     print("PODSUMOWANIE WALIDACJI")
-    print(f"PASS:  {pass_count}")
-    print(f"FAIL:  {fail_count}")
-    print(f"RAZEM: {len(tiff_files)}")
+    print(f"PASS:     {validation['passed']}")
+    print(f"WARNING:  {validation['warnings']}")
+    print(f"FAIL:     {validation['failed']}")
+    print(f"RAZEM:    {validation['total']}")
+    print()
 
-    if fail_count == 0:
+    if validation["failed"] > 0:
+        print("BŁĄD - część TIFF-ów nie przeszła walidacji.")
+
+    elif validation["warnings"] > 0:
+        print("OK - wszystkie TIFF-y są używalne.")
         print(
-            "\nOK - wszystkie TIFF-y "
-            "przeszły walidację."
+            "Niektóre pliki mają tylko ostrzeżenia "
+            "dotyczące opcjonalnych metadanych."
         )
+
     else:
         print(
-            "\nUWAGA - część TIFF-ów "
-            "wymaga sprawdzenia."
+            "OK - wszystkie TIFF-y przeszły "
+            "walidację bez ostrzeżeń."
         )
 
 
