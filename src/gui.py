@@ -1,3 +1,5 @@
+import csv
+import os
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -8,7 +10,10 @@ from converter import (
     convert_images,
 )
 
-from validator import validate_files
+from validator import (
+    validate_files,
+    save_validation_report,
+)
 
 
 BG = "#F7F1E7"
@@ -29,12 +34,12 @@ class ConverterGUI:
         )
 
         self.root.geometry(
-            "800x590"
+            "800x610"
         )
 
         self.root.minsize(
             740,
-            540
+            550
         )
 
         self.root.configure(
@@ -63,6 +68,8 @@ class ConverterGUI:
         self.selected_files = []
         self.input_folder = None
         self.selection_mode = None
+
+        self.last_output_dir = None
 
         self.output_path = tk.StringVar(
             value=str(
@@ -202,6 +209,20 @@ class ConverterGUI:
             )
         )
 
+        style.map(
+            "Accent.TButton",
+            background=[
+                (
+                    "active",
+                    ACCENT_HOVER
+                ),
+                (
+                    "disabled",
+                    "#C9B88D"
+                )
+            ]
+        )
+
         style.configure(
             "Custom.TCheckbutton",
             background=CARD_BG,
@@ -259,6 +280,7 @@ class ConverterGUI:
             expand=True
         )
 
+        # HEADER
         ttk.Label(
             container,
             text=(
@@ -378,13 +400,35 @@ class ConverterGUI:
             pady=(5, 12)
         )
 
-        ttk.Button(
+        output_buttons = ttk.Frame(
             output_card,
+            style="Card.TFrame"
+        )
+
+        output_buttons.pack(
+            anchor="w"
+        )
+
+        ttk.Button(
+            output_buttons,
             text="Change output folder",
             style="Secondary.TButton",
             command=self.select_output
         ).pack(
-            anchor="w"
+            side="left",
+            padx=(0, 10)
+        )
+
+        self.open_output_button = ttk.Button(
+            output_buttons,
+            text="Open output folder",
+            style="Secondary.TButton",
+            command=self.open_output_folder,
+            state="disabled"
+        )
+
+        self.open_output_button.pack(
+            side="left"
         )
 
         self.output_status_label = ttk.Label(
@@ -559,6 +603,42 @@ class ConverterGUI:
             "✓ Output folder selected"
         )
 
+        self.last_output_dir = Path(
+            folder
+        )
+
+        self.open_output_button.config(
+            state="normal"
+        )
+
+    def open_output_folder(self):
+        folder = self.last_output_dir
+
+        if folder is None:
+            folder = Path(
+                self.output_path.get()
+            )
+
+        if not folder.exists():
+            messagebox.showerror(
+                "Output folder",
+                (
+                    "Output folder does not exist."
+                )
+            )
+            return
+
+        try:
+            os.startfile(
+                str(folder)
+            )
+
+        except Exception as exc:
+            messagebox.showerror(
+                "Open folder error",
+                str(exc)
+            )
+
     def start_conversion(self):
         if self.selection_mode is None:
             messagebox.showerror(
@@ -577,6 +657,33 @@ class ConverterGUI:
         )
 
         if not output_dir:
+            messagebox.showerror(
+                "Output folder",
+                "Select an output folder."
+            )
+            return
+
+        if not self.default_dll.exists():
+            messagebox.showerror(
+                "DJI SDK",
+                (
+                    "DJI SDK library was not found:\n"
+                    f"{self.default_dll}"
+                )
+            )
+            return
+
+        try:
+            Path(output_dir).mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+        except OSError as exc:
+            messagebox.showerror(
+                "Output folder error",
+                str(exc)
+            )
             return
 
         policy = (
@@ -594,6 +701,10 @@ class ConverterGUI:
         )
 
         self.convert_button.config(
+            state="disabled"
+        )
+
+        self.open_output_button.config(
             state="disabled"
         )
 
@@ -649,12 +760,27 @@ class ConverterGUI:
                 result["output_files"]
             )
 
+            validation_report = (
+                Path(output_dir)
+                / "validation_report.csv"
+            )
+
+            save_validation_report(
+                validation,
+                validation_report
+            )
+
+            error_details = self.read_conversion_errors(
+                result["report"]
+            )
+
             self.root.after(
                 0,
                 self.conversion_success,
                 result,
                 validation,
-                output_dir
+                output_dir,
+                error_details
             )
 
         except Exception as exc:
@@ -663,6 +789,53 @@ class ConverterGUI:
                 self.conversion_error,
                 str(exc)
             )
+
+    def read_conversion_errors(
+        self,
+        report_path
+    ):
+        errors = []
+
+        report_path = Path(
+            report_path
+        )
+
+        if not report_path.exists():
+            return errors
+
+        try:
+            with report_path.open(
+                "r",
+                newline="",
+                encoding="utf-8-sig"
+            ) as csv_file:
+
+                reader = csv.DictReader(
+                    csv_file
+                )
+
+                for row in reader:
+                    if row.get("status") != "ERROR":
+                        continue
+
+                    filename = row.get(
+                        "filename",
+                        "Unknown file"
+                    )
+
+                    error = row.get(
+                        "error",
+                        "Unknown error"
+                    )
+
+                    errors.append(
+                        f"{filename}\n{error}"
+                    )
+
+        except Exception:
+            pass
+
+        return errors
 
     def set_validation_status(self):
         self.main_status.set(
@@ -677,9 +850,13 @@ class ConverterGUI:
         errors,
         skipped
     ):
-        percent = int(
-            (current / total) * 100
-        )
+        if total <= 0:
+            percent = 0
+
+        else:
+            percent = int(
+                (current / total) * 100
+            )
 
         self.root.after(
             0,
@@ -712,16 +889,21 @@ class ConverterGUI:
         self.main_status.set(
             f"{current} / {total}  •  "
             f"OK: {success}  •  "
-            f"Skipped: {skipped}  •  "
-            f"Errors: {errors}"
+            f"Errors: {errors}  •  "
+            f"Skipped: {skipped}"
         )
 
     def conversion_success(
         self,
         result,
         validation,
-        output_dir
+        output_dir,
+        error_details
     ):
+        self.last_output_dir = Path(
+            output_dir
+        )
+
         self.progress.configure(
             value=100
         )
@@ -734,10 +916,115 @@ class ConverterGUI:
             state="normal"
         )
 
+        self.open_output_button.config(
+            state="normal"
+        )
+
+        # Czytelny status pod paskiem.
+        status_parts = [
+            f"OK: {result['success']}",
+            f"Errors: {result['errors']}",
+            f"Validated: {validation['passed']}",
+        ]
+
+        if validation["warnings"] > 0:
+            status_parts.append(
+                f"Warnings: {validation['warnings']}"
+            )
+
+        if result["skipped"] > 0:
+            status_parts.append(
+                f"Skipped: {result['skipped']}"
+            )
+
+        if validation["failed"] > 0:
+            status_parts.append(
+                f"Validation errors: {validation['failed']}"
+            )
+
         self.main_status.set(
-            f"✓ Converted: {result['success']}  •  "
-            f"Validated: {validation['passed']}  •  "
-            f"Validation failed: {validation['failed']}"
+            "✓ " + "  •  ".join(
+                status_parts
+            )
+        )
+
+        # Czytelny popup.
+        message_lines = [
+            f"Successfully converted: {result['success']}",
+        ]
+
+        if result["skipped"] > 0:
+            message_lines.append(
+                f"Skipped: {result['skipped']}"
+            )
+
+        if result["errors"] > 0:
+            message_lines.append(
+                f"Conversion errors: {result['errors']}"
+            )
+
+        message_lines.append("")
+
+        if (
+            validation["failed"] == 0
+            and validation["warnings"] == 0
+        ):
+            message_lines.append(
+                f"All {validation['passed']} TIFF file(s) "
+                "passed validation."
+            )
+
+        elif validation["failed"] == 0:
+            message_lines.append(
+                f"Passed validation: {validation['passed']}"
+            )
+
+            message_lines.append(
+                f"Passed with warnings: {validation['warnings']}"
+            )
+
+            message_lines.append(
+                "Warnings do not prevent the TIFF files "
+                "from being used."
+            )
+
+                else:
+                    message_lines.append(
+                        f"Validated successfully: {validation['passed']}"
+                    )
+
+                    message_lines.append(
+                        f"Validation errors: {validation['failed']}"
+                    )
+
+        # Pokazujemy konkretne błędy konwersji.
+        if error_details:
+            message_lines.append("")
+            message_lines.append(
+                "Files with conversion errors:"
+            )
+
+            # Maksymalnie kilka pozycji, żeby popup
+            # nie zrobił się ogromny.
+            for error in error_details[:5]:
+                message_lines.append("")
+                message_lines.append(
+                    error
+                )
+
+            if len(error_details) > 5:
+                message_lines.append("")
+                message_lines.append(
+                    f"...and {len(error_details) - 5} more."
+                )
+
+        message_lines.append("")
+        message_lines.append(
+            f"Output folder:\n{output_dir}"
+        )
+
+        message = "\n".join(
+            message_lines
         )
 
         if (
@@ -746,26 +1033,13 @@ class ConverterGUI:
         ):
             messagebox.showinfo(
                 "Conversion completed",
-                (
-                    f"Converted: {result['success']}\n"
-                    f"Skipped: {result['skipped']}\n"
-                    f"Conversion errors: {result['errors']}\n\n"
-                    f"Validated: {validation['passed']}\n"
-                    f"Validation failed: {validation['failed']}\n\n"
-                    f"Output:\n{output_dir}"
-                )
+                message
             )
 
         else:
             messagebox.showwarning(
-                "Completed with warnings",
-                (
-                    f"Converted: {result['success']}\n"
-                    f"Skipped: {result['skipped']}\n"
-                    f"Conversion errors: {result['errors']}\n\n"
-                    f"Validated: {validation['passed']}\n"
-                    f"Validation failed: {validation['failed']}"
-                )
+                "Conversion completed with warnings",
+                message
             )
 
     def conversion_error(
@@ -773,6 +1047,10 @@ class ConverterGUI:
         error_message
     ):
         self.convert_button.config(
+            state="normal"
+        )
+
+        self.open_output_button.config(
             state="normal"
         )
 
