@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-import tifffile
+from PIL import Image
 
 from dji_sdk import (
     DJIThermalSDK,
@@ -12,7 +12,10 @@ from dji_sdk import (
     InvalidRJPEGError,
 )
 
-from metadata import extract_metadata
+from metadata import (
+    extract_metadata,
+    get_source_exif_for_tiff,
+)
 
 
 REPORT_FIELDS = [
@@ -71,72 +74,6 @@ def build_full_metadata(
     }
 
 
-def build_standard_tiff_tags(
-    image_metadata
-):
-    exif_data = image_metadata.get(
-        "exif",
-        {}
-    )
-
-    make = str(
-        exif_data.get(
-            "Make",
-            "DJI"
-        )
-    )
-
-    model = str(
-        exif_data.get(
-            "Model",
-            ""
-        )
-    )
-
-    datetime_value = str(
-        exif_data.get("DateTimeOriginal")
-        or exif_data.get("DateTime")
-        or ""
-    )
-
-    extra_tags = []
-
-    if make:
-        extra_tags.append(
-            (
-                271,
-                "s",
-                len(make) + 1,
-                make,
-                False,
-            )
-        )
-
-    if model:
-        extra_tags.append(
-            (
-                272,
-                "s",
-                len(model) + 1,
-                model,
-                False,
-            )
-        )
-
-    if datetime_value:
-        extra_tags.append(
-            (
-                306,
-                "s",
-                len(datetime_value) + 1,
-                datetime_value,
-                False,
-            )
-        )
-
-    return extra_tags
-
-
 def build_report_row(
     image_path,
     temperature_matrix,
@@ -151,74 +88,141 @@ def build_report_row(
     return {
         "filename": image_path.name,
         "status": "OK",
+
         "width": int(
             temperature_matrix.shape[1]
         ),
+
         "height": int(
             temperature_matrix.shape[0]
         ),
+
         "min_temp_c": float(
             temperature_matrix.min()
         ),
+
         "max_temp_c": float(
             temperature_matrix.max()
         ),
+
         "distance": radiometry_data.get(
             "distance"
         ),
+
         "humidity": radiometry_data.get(
             "humidity"
         ),
+
         "emissivity": radiometry_data.get(
             "emissivity"
         ),
+
         "reflection": radiometry_data.get(
             "reflection"
         ),
+
         "ambient_temp": radiometry_data.get(
             "ambient_temp"
         ),
+
         "gps_latitude": dji_xmp.get(
             "GpsLatitude"
         ),
+
         "gps_longitude": dji_xmp.get(
             "GpsLongitude"
         ),
+
         "absolute_altitude": dji_xmp.get(
             "AbsoluteAltitude"
         ),
+
         "relative_altitude": dji_xmp.get(
             "RelativeAltitude"
         ),
+
         "gimbal_roll": dji_xmp.get(
             "GimbalRollDegree"
         ),
+
         "gimbal_yaw": dji_xmp.get(
             "GimbalYawDegree"
         ),
+
         "gimbal_pitch": dji_xmp.get(
             "GimbalPitchDegree"
         ),
+
         "flight_roll": dji_xmp.get(
             "FlightRollDegree"
         ),
+
         "flight_yaw": dji_xmp.get(
             "FlightYawDegree"
         ),
+
         "flight_pitch": dji_xmp.get(
             "FlightPitchDegree"
         ),
+
         "utc_at_exposure": dji_xmp.get(
             "UTCAtExposure"
         ),
+
         "camera_serial": dji_xmp.get(
             "CameraSerialNumber"
         ),
+
         "drone_serial": dji_xmp.get(
             "DroneSerialNumber"
         ),
+
         "error": "",
     }
+
+
+def save_temperature_tiff(
+    output_path,
+    temperature_matrix,
+    source_image,
+    metadata_str
+):
+    """
+    Zapisuje:
+    - jednopasmowy Float32 TIFF
+    - temperaturę w °C
+    - oryginalny EXIF
+    - GPS IFD
+    - DJI XMP
+    - nasz JSON w ImageDescription
+    """
+
+    output_path = Path(
+        output_path
+    )
+
+    temperature_matrix = (
+        temperature_matrix
+        .astype(
+            np.float32
+        )
+    )
+
+    exif = get_source_exif_for_tiff(
+        source_image,
+        image_description=metadata_str
+    )
+
+    image = Image.fromarray(
+        temperature_matrix,
+        mode="F"
+    )
+
+    image.save(
+        output_path,
+        format="TIFF",
+        exif=exif.tobytes()
+    )
 
 
 def convert_image(
@@ -226,8 +230,13 @@ def convert_image(
     image_path,
     output_dir
 ):
-    image_path = Path(image_path)
-    output_dir = Path(output_dir)
+    image_path = Path(
+        image_path
+    )
+
+    output_dir = Path(
+        output_dir
+    )
 
     print(
         f"Przetwarzam plik: "
@@ -248,7 +257,10 @@ def convert_image(
             "DJI SDK nie zwrócił danych."
         )
 
-    temperature_matrix, radiometry_data = result
+    (
+        temperature_matrix,
+        radiometry_data
+    ) = result
 
     image_metadata = extract_metadata(
         image_path
@@ -266,24 +278,16 @@ def convert_image(
         ensure_ascii=False
     )
 
-    extra_tags = build_standard_tiff_tags(
-        image_metadata
-    )
-
     print(
-        f"Zapisuję do pliku: "
+        f"Zapisuję TIFF: "
         f"{output_path.name}..."
     )
 
-    tifffile.imwrite(
-        str(output_path),
-        temperature_matrix.astype(
-            np.float32
-        ),
-        photometric="minisblack",
-        description=metadata_str,
-        metadata=None,
-        extratags=extra_tags
+    save_temperature_tiff(
+        output_path=output_path,
+        temperature_matrix=temperature_matrix,
+        source_image=image_path,
+        metadata_str=metadata_str
     )
 
     print("SUKCES!")
@@ -296,7 +300,10 @@ def convert_image(
         image_metadata
     )
 
-    return report_row, output_path
+    return (
+        report_row,
+        output_path
+    )
 
 
 def save_report(
@@ -315,6 +322,7 @@ def save_report(
         )
 
         writer.writeheader()
+
         writer.writerows(
             report_rows
         )
@@ -355,7 +363,10 @@ def convert_images(
         for path in image_paths
         if Path(path).is_file()
         and Path(path).suffix.lower()
-        in {".jpg", ".jpeg"}
+        in {
+            ".jpg",
+            ".jpeg",
+        }
     ]
 
     if not image_paths:
@@ -427,7 +438,10 @@ def convert_images(
 
         else:
             try:
-                row, created_file = convert_image(
+                (
+                    row,
+                    created_file
+                ) = convert_image(
                     sdk,
                     image_path,
                     output_dir
@@ -449,7 +463,13 @@ def convert_images(
                     f"{image_path.name}"
                 )
 
-                print(str(exc))
+                print(
+                    str(exc)
+                )
+
+                print(
+                    "-" * 40
+                )
 
                 report_rows.append({
                     "filename": image_path.name,
@@ -467,7 +487,13 @@ def convert_images(
                     f"{image_path.name}"
                 )
 
-                print(str(exc))
+                print(
+                    str(exc)
+                )
+
+                print(
+                    "-" * 40
+                )
 
                 report_rows.append({
                     "filename": image_path.name,
@@ -485,7 +511,13 @@ def convert_images(
                     f"{image_path.name}"
                 )
 
-                print(str(exc))
+                print(
+                    str(exc)
+                )
+
+                print(
+                    "-" * 40
+                )
 
                 report_rows.append({
                     "filename": image_path.name,
@@ -509,6 +541,30 @@ def convert_images(
     save_report(
         report_rows,
         report_path
+    )
+
+    print(
+        "\nKONWERSJA ZAKOŃCZONA"
+    )
+
+    print(
+        f"Poprawnie: {success_count}"
+    )
+
+    print(
+        f"Pominięto: {skipped_count}"
+    )
+
+    print(
+        f"Błędy:     {error_count}"
+    )
+
+    print(
+        f"Razem:     {total}"
+    )
+
+    print(
+        f"Raport:    {report_path}"
     )
 
     return {
@@ -551,7 +607,10 @@ def convert_folder(
         for path in input_dir.iterdir()
         if path.is_file()
         and path.suffix.lower()
-        in {".jpg", ".jpeg"}
+        in {
+            ".jpg",
+            ".jpeg",
+        }
     ])
 
     if not image_paths:
@@ -577,13 +636,20 @@ def parse_arguments():
         .parent
     )
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "Convert DJI thermal R-JPEG "
+            "images to Float32 TIFF."
+        )
+    )
 
     parser.add_argument(
         "input",
         nargs="?",
         default=str(
-            base_dir / "data" / "input"
+            base_dir
+            / "data"
+            / "input"
         )
     )
 
@@ -591,7 +657,9 @@ def parse_arguments():
         "output",
         nargs="?",
         default=str(
-            base_dir / "data" / "output"
+            base_dir
+            / "data"
+            / "output"
         )
     )
 
