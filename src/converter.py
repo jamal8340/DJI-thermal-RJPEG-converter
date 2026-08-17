@@ -1,3 +1,4 @@
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -10,8 +11,6 @@ from metadata import extract_metadata
 
 
 def build_full_metadata(temperature_matrix, radiometry_data, image_metadata):
-    """Buduje komplet metadanych zapisywanych w ImageDescription."""
-
     return {
         "temperature": {
             "unit": "Celsius",
@@ -27,13 +26,10 @@ def build_full_metadata(temperature_matrix, radiometry_data, image_metadata):
 
 
 def build_standard_tiff_tags(image_metadata):
-    """Tworzy standardowe tagi TIFF: Make, Model, DateTime."""
-
     exif_data = image_metadata.get("exif", {})
 
     make = str(exif_data.get("Make", "DJI"))
     model = str(exif_data.get("Model", ""))
-
     datetime_value = str(
         exif_data.get("DateTimeOriginal")
         or exif_data.get("DateTime")
@@ -43,14 +39,10 @@ def build_standard_tiff_tags(image_metadata):
     extra_tags = []
 
     if make:
-        extra_tags.append(
-            (271, "s", len(make) + 1, make, False)
-        )
+        extra_tags.append((271, "s", len(make) + 1, make, False))
 
     if model:
-        extra_tags.append(
-            (272, "s", len(model) + 1, model, False)
-        )
+        extra_tags.append((272, "s", len(model) + 1, model, False))
 
     if datetime_value:
         extra_tags.append(
@@ -66,8 +58,6 @@ def build_report_row(
     radiometry_data,
     image_metadata
 ):
-    """Buduje jeden wiersz raportu CSV."""
-
     dji_xmp = image_metadata.get("dji_xmp", {})
 
     return {
@@ -100,11 +90,6 @@ def build_report_row(
 
 
 def convert_image(sdk, image_path, output_dir):
-    """
-    Konwertuje jeden DJI R-JPEG do jednopasmowego TIFF Float32.
-    Zwraca dane do raportu CSV.
-    """
-
     print(f"Przetwarzam plik: {image_path.name}")
 
     output_path = output_dir / f"{image_path.stem}.tif"
@@ -116,10 +101,8 @@ def convert_image(sdk, image_path, output_dir):
 
     temperature_matrix, radiometry_data = result
 
-    # EXIF + DJI XMP
     image_metadata = extract_metadata(image_path)
 
-    # Pełne metadane do ImageDescription
     full_metadata = build_full_metadata(
         temperature_matrix,
         radiometry_data,
@@ -132,7 +115,6 @@ def convert_image(sdk, image_path, output_dir):
         ensure_ascii=False
     )
 
-    # Standardowe tagi TIFF
     extra_tags = build_standard_tiff_tags(image_metadata)
 
     print(f"Zapisuję do pliku: {output_path.name}...")
@@ -158,8 +140,6 @@ def convert_image(sdk, image_path, output_dir):
 
 
 def save_report(report_rows, report_path):
-    """Zapisuje raport całej konwersji do CSV."""
-
     fieldnames = [
         "filename",
         "status",
@@ -193,7 +173,6 @@ def save_report(report_rows, report_path):
         newline="",
         encoding="utf-8-sig"
     ) as csv_file:
-
         writer = csv.DictWriter(
             csv_file,
             fieldnames=fieldnames
@@ -203,39 +182,43 @@ def save_report(report_rows, report_path):
         writer.writerows(report_rows)
 
 
-def main():
-    base_dir = Path(__file__).resolve().parent.parent
+def convert_folder(input_dir, output_dir, dll_path):
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    dll_path = Path(dll_path)
 
-    input_dir = base_dir / "data" / "input"
-    output_dir = base_dir / "data" / "output"
-    report_path = output_dir / "conversion_report.csv"
+    if not input_dir.exists():
+        raise FileNotFoundError(
+            f"Folder wejściowy nie istnieje: {input_dir}"
+        )
 
-    dll_path = str(
-        base_dir / "tools" / "libdirp.dll"
-    )
+    if not dll_path.exists():
+        raise FileNotFoundError(
+            f"Nie znaleziono libdirp.dll: {dll_path}"
+        )
 
     output_dir.mkdir(
         parents=True,
         exist_ok=True
     )
 
-    image_paths = [
+    image_paths = sorted([
         path
         for path in input_dir.iterdir()
         if path.is_file()
         and path.suffix.lower() in {".jpg", ".jpeg"}
-    ]
+    ])
 
     if not image_paths:
-        print("Brak plików JPG w data/input.")
+        print("Brak plików JPG/JPEG w folderze wejściowym.")
         return
 
-    print("Inicjalizacja silnika DJI SDK...")
+    report_path = output_dir / "conversion_report.csv"
 
-    sdk = DJIThermalSDK(dll_path)
+    print("Inicjalizacja silnika DJI SDK...")
+    sdk = DJIThermalSDK(str(dll_path))
 
     report_rows = []
-
     success_count = 0
     error_count = 0
 
@@ -273,6 +256,53 @@ def main():
     print(f"Błędy:     {error_count}")
     print(f"Razem:     {len(image_paths)}")
     print(f"Raport:    {report_path}")
+
+
+def parse_arguments():
+    base_dir = Path(__file__).resolve().parent.parent
+
+    default_input = base_dir / "data" / "input"
+    default_output = base_dir / "data" / "output"
+    default_dll = base_dir / "tools" / "libdirp.dll"
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Convert DJI thermal R-JPEG images "
+            "to Float32 temperature TIFF files."
+        )
+    )
+
+    parser.add_argument(
+        "input",
+        nargs="?",
+        default=str(default_input),
+        help="Folder containing DJI R-JPEG files."
+    )
+
+    parser.add_argument(
+        "output",
+        nargs="?",
+        default=str(default_output),
+        help="Output folder for TIFF files."
+    )
+
+    parser.add_argument(
+        "--dll",
+        default=str(default_dll),
+        help="Path to DJI libdirp.dll."
+    )
+
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
+
+    convert_folder(
+        input_dir=args.input,
+        output_dir=args.output,
+        dll_path=args.dll
+    )
 
 
 if __name__ == "__main__":
