@@ -1,11 +1,9 @@
-venv/
+.venv/
 .vs/
 env/
 
-
 __pycache__/
 *.pyc
-
 
 data/
 !data/.keep
