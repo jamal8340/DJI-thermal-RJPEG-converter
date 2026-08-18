@@ -988,14 +988,14 @@ class ConverterGUI:
                 "from being used."
             )
 
-                else:
-                    message_lines.append(
-                        f"Validated successfully: {validation['passed']}"
-                    )
+        else:
+            message_lines.append(
+                f"Validated successfully: {validation['passed']}"
+            )
 
-                    message_lines.append(
-                        f"Validation errors: {validation['failed']}"
-                    )
+            message_lines.append(
+                f"Validation errors: {validation['failed']}"
+            )
 
         # Pokazujemy konkretne błędy konwersji.
         if error_details:
