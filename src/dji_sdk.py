@@ -1,5 +1,6 @@
 import ctypes
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -30,9 +31,55 @@ class InvalidRJPEGError(DJIError):
     """Plik nie jest poprawnym radiometrycznym DJI R-JPEG."""
 
 
+def get_app_base_dir():
+    """
+    Zwraca katalog bazowy aplikacji.
+
+    Działa zarówno:
+    - przy uruchamianiu kodu przez Pythona,
+    - po spakowaniu aplikacji przez PyInstaller.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+
+    return (
+        Path(__file__)
+        .resolve()
+        .parent
+        .parent
+    )
+
+
+def get_default_dll_path():
+    """
+    Zwraca ścieżkę do libdirp.dll.
+
+    Python:
+        <project>\tools\libdirp.dll
+
+    PyInstaller --onedir:
+        <exe>\_internal\tools\libdirp.dll
+    """
+    if getattr(sys, "frozen", False):
+        return (
+            Path(sys._MEIPASS)
+            / "tools"
+            / "libdirp.dll"
+        )
+
+    return (
+        get_app_base_dir()
+        / "tools"
+        / "libdirp.dll"
+    )
+
+
 class DJIThermalSDK:
-    def __init__(self, dll_path):
-        dll_path = Path(dll_path)
+    def __init__(self, dll_path=None):
+        if dll_path is None:
+            dll_path = get_default_dll_path()
+
+        dll_path = Path(dll_path).resolve()
 
         if not dll_path.exists():
             raise FileNotFoundError(
@@ -41,8 +88,12 @@ class DJIThermalSDK:
 
         tools_dir = dll_path.parent
 
+        self._dll_directory_handle = None
+
         if hasattr(os, "add_dll_directory"):
-            os.add_dll_directory(str(tools_dir))
+            self._dll_directory_handle = os.add_dll_directory(
+                str(tools_dir)
+            )
 
         try:
             self.lib = ctypes.CDLL(str(dll_path))
@@ -237,18 +288,9 @@ class DJIThermalSDK:
 
 
 if __name__ == "__main__":
-    base_dir = (
-        Path(__file__)
-        .resolve()
-        .parent
-        .parent
-    )
+    base_dir = get_app_base_dir()
 
-    dll_path = (
-        base_dir
-        / "tools"
-        / "libdirp.dll"
-    )
+    dll_path = get_default_dll_path()
 
     test_image = (
         base_dir
@@ -256,6 +298,9 @@ if __name__ == "__main__":
         / "input"
         / "DJI_20230920123005_0001_T.JPG"
     )
+
+    print(f"Base dir: {base_dir}")
+    print(f"DJI DLL:  {dll_path}")
 
     sdk = DJIThermalSDK(
         dll_path

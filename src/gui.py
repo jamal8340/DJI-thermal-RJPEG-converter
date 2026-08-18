@@ -1,5 +1,6 @@
 import csv
 import os
+import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -46,24 +47,26 @@ class ConverterGUI:
             bg=BG
         )
 
-        base_dir = (
-            Path(__file__)
-            .resolve()
-            .parent
-            .parent
-        )
+        if getattr(sys, "frozen", False):
+            self.default_output = (
+                Path.home()
+                / "Documents"
+                / "DJI_Thermal_Converter"
+                / "output"
+            )
+        else:
+            base_dir = (
+                Path(__file__)
+                .resolve()
+                .parent
+                .parent
+            )
 
-        self.default_dll = (
-            base_dir
-            / "tools"
-            / "libdirp.dll"
-        )
-
-        self.default_output = (
-            base_dir
-            / "data"
-            / "output"
-        )
+            self.default_output = (
+                base_dir
+                / "data"
+                / "output"
+            )
 
         self.selected_files = []
         self.input_folder = None
@@ -663,16 +666,6 @@ class ConverterGUI:
             )
             return
 
-        if not self.default_dll.exists():
-            messagebox.showerror(
-                "DJI SDK",
-                (
-                    "DJI SDK library was not found:\n"
-                    f"{self.default_dll}"
-                )
-            )
-            return
-
         try:
             Path(output_dir).mkdir(
                 parents=True,
@@ -733,7 +726,6 @@ class ConverterGUI:
                 result = convert_images(
                     image_paths=self.selected_files,
                     output_dir=output_dir,
-                    dll_path=self.default_dll,
                     progress_callback=(
                         self.progress_callback
                     ),
@@ -744,7 +736,6 @@ class ConverterGUI:
                 result = convert_folder(
                     input_dir=self.input_folder,
                     output_dir=output_dir,
-                    dll_path=self.default_dll,
                     progress_callback=(
                         self.progress_callback
                     ),

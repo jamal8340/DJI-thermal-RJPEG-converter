@@ -10,6 +10,7 @@ from dji_sdk import (
     DJIThermalSDK,
     DJIError,
     InvalidRJPEGError,
+    get_default_dll_path,
 )
 
 from metadata import (
@@ -328,19 +329,62 @@ def save_report(
         )
 
 
+def create_sdk(
+    dll_path=None
+):
+    """
+    Tworzy instancję DJI Thermal SDK.
+
+    Jeśli dll_path:
+    - nie został podany -> używa domyślnej ścieżki z dji_sdk.py
+    - istnieje -> używa podanej ścieżki
+    - nie istnieje -> próbuje automatycznej ścieżki
+
+    Dzięki temu działa zarówno:
+    - normalny Python
+    - PyInstaller --onedir
+    """
+
+    if dll_path:
+        candidate = Path(
+            dll_path
+        )
+
+        if candidate.exists():
+            return DJIThermalSDK(
+                candidate
+            )
+
+        print(
+            "Podana ścieżka DJI SDK nie istnieje:"
+        )
+
+        print(
+            candidate
+        )
+
+        print(
+            "Próba użycia automatycznej ścieżki..."
+        )
+
+    default_dll = get_default_dll_path()
+
+    print(
+        f"DJI SDK: {default_dll}"
+    )
+
+    return DJIThermalSDK()
+
+
 def convert_images(
     image_paths,
     output_dir,
-    dll_path,
+    dll_path=None,
     progress_callback=None,
     existing_policy="skip"
 ):
     output_dir = Path(
         output_dir
-    )
-
-    dll_path = Path(
-        dll_path
     )
 
     if existing_policy not in {
@@ -350,12 +394,6 @@ def convert_images(
         raise ValueError(
             "existing_policy musi mieć "
             "wartość 'skip' albo 'overwrite'."
-        )
-
-    if not dll_path.exists():
-        raise FileNotFoundError(
-            f"Nie znaleziono libdirp.dll: "
-            f"{dll_path}"
         )
 
     image_paths = [
@@ -389,8 +427,8 @@ def convert_images(
         "Inicjalizacja silnika DJI SDK..."
     )
 
-    sdk = DJIThermalSDK(
-        str(dll_path)
+    sdk = create_sdk(
+        dll_path
     )
 
     report_rows = []
@@ -580,7 +618,7 @@ def convert_images(
 def convert_folder(
     input_dir,
     output_dir,
-    dll_path,
+    dll_path=None,
     progress_callback=None,
     existing_policy="skip"
 ):
@@ -665,10 +703,11 @@ def parse_arguments():
 
     parser.add_argument(
         "--dll",
-        default=str(
-            base_dir
-            / "tools"
-            / "libdirp.dll"
+        default=None,
+        help=(
+            "Opcjonalna ścieżka do libdirp.dll. "
+            "Jeśli pominięta, ścieżka zostanie "
+            "wykryta automatycznie."
         )
     )
 
