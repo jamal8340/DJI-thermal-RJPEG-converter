@@ -31,7 +31,7 @@ class ConverterGUI:
         self.root = root
 
         self.root.title(
-            "DJI Thermal R-JPEG Converter"
+            "DJI Thermal R-JPEG Converter v1.0.0"
         )
 
         self.root.geometry(
@@ -287,7 +287,7 @@ class ConverterGUI:
         ttk.Label(
             container,
             text=(
-                "DJI Thermal R-JPEG Converter"
+                "DJI Thermal R-JPEG Converter v1.0.0"
             ),
             style="Title.TLabel"
         ).pack(
@@ -828,6 +828,64 @@ class ConverterGUI:
 
         return errors
 
+    def get_validation_warnings(
+        self,
+        validation
+    ):
+        warnings = []
+
+        for result in validation.get(
+            "results",
+            []
+        ):
+            filename = result.get(
+                "filename",
+                "Unknown file"
+            )
+
+            file_warnings = result.get(
+                "warnings",
+                []
+            )
+
+            for warning in file_warnings:
+                warning_text = str(
+                    warning
+                )
+
+                if (
+                    "Brak opcjonalnego DJI XMP:"
+                    in warning_text
+                ):
+                    field = (
+                        warning_text
+                        .split(
+                            ":",
+                            1
+                        )[1]
+                        .strip()
+                    )
+
+                    warning_text = (
+                        "missing optional metadata: "
+                        f"{field}"
+                    )
+
+                elif (
+                    "UTCAtExposure"
+                    in warning_text
+                ):
+                    warning_text = (
+                        "missing optional metadata: "
+                        "UTCAtExposure"
+                    )
+
+                warnings.append(
+                    f"{filename} — {warning_text}"
+                )
+
+        return warnings
+
     def set_validation_status(self):
         self.main_status.set(
             "Conversion complete — validating TIFF files..."
@@ -878,10 +936,23 @@ class ConverterGUI:
         )
 
         self.main_status.set(
-            f"{current} / {total}  •  "
-            f"OK: {success}  •  "
-            f"Errors: {errors}  •  "
-            f"Skipped: {skipped}"
+            f"Converted: {current} / {total}"
+        )
+
+        if errors > 0:
+            status_parts.append(
+                f"Failed: {errors}"
+            )
+
+        if skipped > 0:
+            status_parts.append(
+                f"Skipped: {skipped}"
+            )
+
+        self.main_status.set(
+            "  •  ".join(
+                status_parts
+            )
         )
 
     def conversion_success(
@@ -911,92 +982,130 @@ class ConverterGUI:
             state="normal"
         )
 
-        # Czytelny status pod paskiem.
-        status_parts = [
-            f"OK: {result['success']}",
-            f"Errors: {result['errors']}",
-            f"Validated: {validation['passed']}",
-        ]
+        converted = result["success"]
+        total = result["total"]
+        skipped = result["skipped"]
+        conversion_errors = result["errors"]
 
-        if validation["warnings"] > 0:
+        passed = validation["passed"]
+        warnings_count = validation["warnings"]
+        failed = validation["failed"]
+
+        validation_warnings = (
+            self.get_validation_warnings(
+                validation
+            )
+        )
+
+        status_parts = []
+
+        if conversion_errors == 0:
             status_parts.append(
-                f"Warnings: {validation['warnings']}"
+                f"{converted} files converted successfully"
+            )
+        else:
+            status_parts.append(
+                f"{converted} of {total} files converted"
             )
 
-        if result["skipped"] > 0:
+        status_parts.append(
+            f"{passed} passed all checks"
+        )
+
+        if warnings_count > 0:
             status_parts.append(
-                f"Skipped: {result['skipped']}"
+                f"{warnings_count} passed with warnings"
             )
 
-        if validation["failed"] > 0:
+        if failed > 0:
             status_parts.append(
-                f"Validation errors: {validation['failed']}"
+                f"{failed} failed validation"
+            )
+
+        if skipped > 0:
+            status_parts.append(
+                f"{skipped} skipped"
             )
 
         self.main_status.set(
-            "✓ " + "  •  ".join(
+            " • ".join(
                 status_parts
             )
         )
 
-        # Czytelny popup.
-        message_lines = [
-            f"Successfully converted: {result['success']}",
-        ]
+        message_lines = []
 
-        if result["skipped"] > 0:
+        if (
+            conversion_errors == 0
+            and failed == 0
+        ):
             message_lines.append(
-                f"Skipped: {result['skipped']}"
+                "Conversion completed successfully"
             )
-
-        if result["errors"] > 0:
+        else:
             message_lines.append(
-                f"Conversion errors: {result['errors']}"
+                "Conversion completed with issues"
             )
 
         message_lines.append("")
 
-        if (
-            validation["failed"] == 0
-            and validation["warnings"] == 0
-        ):
+        message_lines.append(
+            f"{converted} of {total} files were converted."
+        )
+
+        if skipped > 0:
             message_lines.append(
-                f"All {validation['passed']} TIFF file(s) "
-                "passed validation."
+                f"{skipped} files were skipped."
             )
 
-        elif validation["failed"] == 0:
+        if conversion_errors > 0:
             message_lines.append(
-                f"Passed validation: {validation['passed']}"
+                f"{conversion_errors} files could not be converted."
             )
 
+        message_lines.append("")
+        message_lines.append(
+            "Validation:"
+        )
+
+        message_lines.append(
+            f"{passed} files passed all checks."
+        )
+
+        if warnings_count > 0:
             message_lines.append(
-                f"Passed with warnings: {validation['warnings']}"
+                f"{warnings_count} files are valid "
+                "but contain non-critical warnings."
             )
 
+        if failed > 0:
             message_lines.append(
-                "Warnings do not prevent the TIFF files "
-                "from being used."
+                f"{failed} files failed validation."
             )
 
-        else:
+        if validation_warnings:
+            message_lines.append("")
             message_lines.append(
-                f"Validated successfully: {validation['passed']}"
+                "Warnings:"
             )
 
-            message_lines.append(
-                f"Validation errors: {validation['failed']}"
-            )
+            for warning in validation_warnings[:5]:
+                message_lines.append(
+                    warning
+                )
 
-        # Pokazujemy konkretne błędy konwersji.
+            if len(validation_warnings) > 5:
+                message_lines.append(
+                    f"...and "
+                    f"{len(validation_warnings) - 5} more"
+                )
+
         if error_details:
             message_lines.append("")
             message_lines.append(
-                "Files with conversion errors:"
+                "Conversion errors:"
             )
 
-            # Maksymalnie kilka pozycji, żeby popup
-            # nie zrobił się ogromny.
             for error in error_details[:5]:
                 message_lines.append("")
                 message_lines.append(
@@ -1006,7 +1115,8 @@ class ConverterGUI:
             if len(error_details) > 5:
                 message_lines.append("")
                 message_lines.append(
-                    f"...and {len(error_details) - 5} more."
+                    f"...and "
+                    f"{len(error_details) - 5} more"
                 )
 
         message_lines.append("")
@@ -1019,8 +1129,8 @@ class ConverterGUI:
         )
 
         if (
-            result["errors"] == 0
-            and validation["failed"] == 0
+            conversion_errors == 0
+            and failed == 0
         ):
             messagebox.showinfo(
                 "Conversion completed",
@@ -1029,7 +1139,7 @@ class ConverterGUI:
 
         else:
             messagebox.showwarning(
-                "Conversion completed with warnings",
+                "Conversion completed with issues",
                 message
             )
 
