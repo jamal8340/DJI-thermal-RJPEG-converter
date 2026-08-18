@@ -16,6 +16,23 @@ class MeasurementParams(ctypes.Structure):
     ]
 
 
+class FloatRange(ctypes.Structure):
+    _fields_ = [
+        ("min", ctypes.c_float),
+        ("max", ctypes.c_float),
+    ]
+
+
+class MeasurementParamsRange(ctypes.Structure):
+    _fields_ = [
+        ("distance", FloatRange),
+        ("humidity", FloatRange),
+        ("emissivity", FloatRange),
+        ("reflection", FloatRange),
+        ("ambient_temp", FloatRange),
+    ]
+
+
 class DirpResolution(ctypes.Structure):
     _fields_ = [
         ("width", ctypes.c_int32),
@@ -55,10 +72,10 @@ def get_default_dll_path():
     Zwraca ścieżkę do libdirp.dll.
 
     Python:
-        <project>\tools\libdirp.dll
+        <project>\\tools\\libdirp.dll
 
-    PyInstaller --onedir:
-        <exe>\_internal\tools\libdirp.dll
+    PyInstaller:
+        <temporary PyInstaller dir>\\tools\\libdirp.dll
     """
     if getattr(sys, "frozen", False):
         return (
@@ -96,42 +113,73 @@ class DJIThermalSDK:
             )
 
         try:
-            self.lib = ctypes.CDLL(str(dll_path))
+            self.lib = ctypes.CDLL(
+                str(dll_path)
+            )
         except OSError as exc:
             raise DJIError(
                 f"Nie udało się załadować DJI SDK: {exc}"
             ) from exc
 
+        self._configure_api()
+
+    def _configure_api(self):
         self.lib.dirp_create_from_rjpeg.argtypes = [
             ctypes.POINTER(ctypes.c_uint8),
             ctypes.c_int32,
             ctypes.POINTER(ctypes.c_void_p),
         ]
-        self.lib.dirp_create_from_rjpeg.restype = ctypes.c_int32
+        self.lib.dirp_create_from_rjpeg.restype = (
+            ctypes.c_int32
+        )
 
         self.lib.dirp_get_rjpeg_resolution.argtypes = [
             ctypes.c_void_p,
             ctypes.POINTER(DirpResolution),
         ]
-        self.lib.dirp_get_rjpeg_resolution.restype = ctypes.c_int32
+        self.lib.dirp_get_rjpeg_resolution.restype = (
+            ctypes.c_int32
+        )
 
         self.lib.dirp_measure_ex.argtypes = [
             ctypes.c_void_p,
             ctypes.POINTER(ctypes.c_float),
             ctypes.c_int32,
         ]
-        self.lib.dirp_measure_ex.restype = ctypes.c_int32
+        self.lib.dirp_measure_ex.restype = (
+            ctypes.c_int32
+        )
 
         self.lib.dirp_get_measurement_params.argtypes = [
             ctypes.c_void_p,
             ctypes.POINTER(MeasurementParams),
         ]
-        self.lib.dirp_get_measurement_params.restype = ctypes.c_int32
+        self.lib.dirp_get_measurement_params.restype = (
+            ctypes.c_int32
+        )
+
+        self.lib.dirp_set_measurement_params.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(MeasurementParams),
+        ]
+        self.lib.dirp_set_measurement_params.restype = (
+            ctypes.c_int32
+        )
+
+        self.lib.dirp_get_measurement_params_range.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(MeasurementParamsRange),
+        ]
+        self.lib.dirp_get_measurement_params_range.restype = (
+            ctypes.c_int32
+        )
 
         self.lib.dirp_destroy.argtypes = [
             ctypes.c_void_p
         ]
-        self.lib.dirp_destroy.restype = ctypes.c_int32
+        self.lib.dirp_destroy.restype = (
+            ctypes.c_int32
+        )
 
     def get_radiometry(self, handle):
         params = MeasurementParams()
@@ -148,28 +196,220 @@ class DJIThermalSDK:
             )
 
         return {
-            "distance": round(params.distance, 2),
-            "humidity": round(params.humidity, 2),
-            "emissivity": round(params.emissivity, 2),
-            "reflection": round(params.reflection, 2),
-            "ambient_temp": round(params.ambient_temp, 2),
+            "distance": round(
+                float(params.distance),
+                4
+            ),
+            "humidity": round(
+                float(params.humidity),
+                4
+            ),
+            "emissivity": round(
+                float(params.emissivity),
+                4
+            ),
+            "reflection": round(
+                float(params.reflection),
+                4
+            ),
+            "ambient_temp": round(
+                float(params.ambient_temp),
+                4
+            ),
         }
 
-    def process_image_info(self, image_path):
-        image_path = Path(image_path)
+    def get_measurement_ranges(self, handle):
+        ranges = MeasurementParamsRange()
+
+        result = (
+            self.lib
+            .dirp_get_measurement_params_range(
+                handle,
+                ctypes.byref(ranges)
+            )
+        )
+
+        if result != 0:
+            raise DJIError(
+                "Nie udało się pobrać zakresów parametrów "
+                f"radiometrycznych (kod DJI SDK: {result})."
+            )
+
+        return {
+            "distance": (
+                float(ranges.distance.min),
+                float(ranges.distance.max),
+            ),
+            "humidity": (
+                float(ranges.humidity.min),
+                float(ranges.humidity.max),
+            ),
+            "emissivity": (
+                float(ranges.emissivity.min),
+                float(ranges.emissivity.max),
+            ),
+            "reflection": (
+                float(ranges.reflection.min),
+                float(ranges.reflection.max),
+            ),
+            "ambient_temp": (
+                float(ranges.ambient_temp.min),
+                float(ranges.ambient_temp.max),
+            ),
+        }
+
+    def set_measurement_params(
+        self,
+        handle,
+        overrides
+    ):
+        """
+        Nadpisuje wybrane parametry radiometryczne.
+
+        Dozwolone klucze:
+        - distance
+        - humidity
+        - emissivity
+        - reflection
+
+        ambient_temp pozostaje aktualnie wartością
+        pochodzącą z oryginalnego R-JPEG.
+        """
+        if not overrides:
+            return self.get_radiometry(
+                handle
+            )
+
+        allowed_keys = {
+            "distance",
+            "humidity",
+            "emissivity",
+            "reflection",
+        }
+
+        unknown_keys = (
+            set(overrides)
+            - allowed_keys
+        )
+
+        if unknown_keys:
+            raise ValueError(
+                "Nieobsługiwane parametry radiometryczne: "
+                + ", ".join(
+                    sorted(unknown_keys)
+                )
+            )
+
+        current = self.get_radiometry(
+            handle
+        )
+
+        ranges = self.get_measurement_ranges(
+            handle
+        )
+
+        updated = dict(
+            current
+        )
+
+        for key, raw_value in overrides.items():
+            if raw_value is None:
+                continue
+
+            try:
+                value = float(
+                    raw_value
+                )
+            except (
+                TypeError,
+                ValueError
+            ) as exc:
+                raise ValueError(
+                    f"Niepoprawna wartość parametru "
+                    f"{key}: {raw_value}"
+                ) from exc
+
+            if not np.isfinite(
+                value
+            ):
+                raise ValueError(
+                    f"Parametr {key} musi być "
+                    "skończoną liczbą."
+                )
+
+            minimum, maximum = (
+                ranges[key]
+            )
+
+            if not (
+                minimum
+                <= value
+                <= maximum
+            ):
+                raise ValueError(
+                    f"Parametr {key} = {value} "
+                    f"jest poza zakresem DJI SDK "
+                    f"[{minimum}, {maximum}]."
+                )
+
+            updated[key] = value
+
+        params = MeasurementParams(
+            distance=updated["distance"],
+            humidity=updated["humidity"],
+            emissivity=updated["emissivity"],
+            reflection=updated["reflection"],
+            ambient_temp=current[
+                "ambient_temp"
+            ],
+        )
+
+        result = (
+            self.lib
+            .dirp_set_measurement_params(
+                handle,
+                ctypes.byref(params)
+            )
+        )
+
+        if result != 0:
+            raise DJIError(
+                "DJI SDK odrzucił parametry "
+                f"radiometryczne "
+                f"(kod DJI SDK: {result})."
+            )
+
+        return self.get_radiometry(
+            handle
+        )
+
+    def process_image_info(
+        self,
+        image_path,
+        measurement_overrides=None
+    ):
+        image_path = Path(
+            image_path
+        )
 
         if not image_path.exists():
             raise FileNotFoundError(
                 f"Plik nie istnieje: {image_path}"
             )
 
-        if image_path.suffix.lower() not in {".jpg", ".jpeg"}:
+        if image_path.suffix.lower() not in {
+            ".jpg",
+            ".jpeg",
+        }:
             raise InvalidRJPEGError(
-                f"Nieobsługiwany format pliku: {image_path.suffix}"
+                f"Nieobsługiwany format pliku: "
+                f"{image_path.suffix}"
             )
 
         try:
-            image_data = image_path.read_bytes()
+            image_data = (
+                image_path.read_bytes()
+            )
         except OSError as exc:
             raise DJIError(
                 f"Nie można odczytać pliku: {exc}"
@@ -181,46 +421,121 @@ class DJIThermalSDK:
             )
 
         buffer = (
-            ctypes.c_uint8 * len(image_data)
-        ).from_buffer_copy(image_data)
+            ctypes.c_uint8
+            * len(image_data)
+        ).from_buffer_copy(
+            image_data
+        )
 
         handle = ctypes.c_void_p()
 
-        create_result = self.lib.dirp_create_from_rjpeg(
-            buffer,
-            len(image_data),
-            ctypes.byref(handle)
+        create_result = (
+            self.lib
+            .dirp_create_from_rjpeg(
+                buffer,
+                len(image_data),
+                ctypes.byref(handle)
+            )
         )
 
         if create_result != 0:
             raise InvalidRJPEGError(
-                "Plik JPG nie jest poprawnym DJI radiometric R-JPEG "
-                f"lub jest uszkodzony (kod DJI SDK: {create_result})."
+                "Plik JPG nie jest poprawnym DJI "
+                "radiometric R-JPEG lub jest uszkodzony "
+                f"(kod DJI SDK: {create_result})."
             )
 
         try:
             resolution = DirpResolution()
 
-            resolution_result = self.lib.dirp_get_rjpeg_resolution(
-                handle,
-                ctypes.byref(resolution)
+            resolution_result = (
+                self.lib
+                .dirp_get_rjpeg_resolution(
+                    handle,
+                    ctypes.byref(
+                        resolution
+                    )
+                )
             )
 
             if resolution_result != 0:
                 raise DJIError(
-                    "Nie udało się pobrać rozdzielczości "
-                    f"(kod DJI SDK: {resolution_result})."
+                    "Nie udało się pobrać "
+                    "rozdzielczości "
+                    f"(kod DJI SDK: "
+                    f"{resolution_result})."
                 )
 
-            if resolution.width <= 0 or resolution.height <= 0:
+            if (
+                resolution.width <= 0
+                or resolution.height <= 0
+            ):
                 raise DJIError(
-                    "DJI SDK zwrócił niepoprawną rozdzielczość."
+                    "DJI SDK zwrócił "
+                    "niepoprawną rozdzielczość."
                 )
 
             print(
                 "Sukces! Zdjęcie zdekodowane. "
-                f"Wymiary: {resolution.width}x{resolution.height}"
+                f"Wymiary: "
+                f"{resolution.width}x"
+                f"{resolution.height}"
             )
+
+            original_radiometry = (
+                self.get_radiometry(
+                    handle
+                )
+            )
+
+            print(
+                "\nParametry zapisane w R-JPEG:"
+            )
+
+            for key, value in (
+                original_radiometry.items()
+            ):
+                print(
+                    f"- {key}: {value}"
+                )
+
+            if measurement_overrides:
+                print(
+                    "\nNadpisywanie parametrów:"
+                )
+
+                for key, value in (
+                    measurement_overrides
+                    .items()
+                ):
+                    if value is not None:
+                        print(
+                            f"- {key}: {value}"
+                        )
+
+                radiometry_data = (
+                    self.set_measurement_params(
+                        handle,
+                        measurement_overrides
+                    )
+                )
+
+            else:
+                radiometry_data = (
+                    original_radiometry
+                )
+
+            print(
+                "\nParametry użyte do "
+                "obliczenia temperatur:"
+            )
+
+            for key, value in (
+                radiometry_data.items()
+            ):
+                print(
+                    f"- {key}: {value}"
+                )
 
             num_pixels = (
                 resolution.width
@@ -229,28 +544,38 @@ class DJIThermalSDK:
 
             buffer_size = (
                 num_pixels
-                * ctypes.sizeof(ctypes.c_float)
+                * ctypes.sizeof(
+                    ctypes.c_float
+                )
             )
 
             temp_buffer = (
-                ctypes.c_float * num_pixels
+                ctypes.c_float
+                * num_pixels
             )()
 
-            measure_result = self.lib.dirp_measure_ex(
-                handle,
-                temp_buffer,
-                buffer_size
+            measure_result = (
+                self.lib
+                .dirp_measure_ex(
+                    handle,
+                    temp_buffer,
+                    buffer_size
+                )
             )
 
             if measure_result != 0:
                 raise DJIError(
-                    "Nie udało się obliczyć temperatur "
-                    f"(kod DJI SDK: {measure_result})."
+                    "Nie udało się obliczyć "
+                    "temperatur "
+                    f"(kod DJI SDK: "
+                    f"{measure_result})."
                 )
 
             temperature_matrix = (
                 np.ctypeslib
-                .as_array(temp_buffer)
+                .as_array(
+                    temp_buffer
+                )
                 .copy()
                 .reshape(
                     (
@@ -264,17 +589,18 @@ class DJIThermalSDK:
                 temperature_matrix
             ).all():
                 raise DJIError(
-                    "DJI SDK zwrócił NaN lub Inf w macierzy temperatur."
+                    "DJI SDK zwrócił NaN lub Inf "
+                    "w macierzy temperatur."
                 )
 
             print(
-                "Temperatury pobrane! "
-                f"Min: {temperature_matrix.min():.2f} °C | "
-                f"Max: {temperature_matrix.max():.2f} °C"
-            )
-
-            radiometry_data = self.get_radiometry(
-                handle
+                "\nTemperatury pobrane! "
+                f"Min: "
+                f"{temperature_matrix.min():.2f} °C | "
+                f"Max: "
+                f"{temperature_matrix.max():.2f} °C | "
+                f"Mean: "
+                f"{temperature_matrix.mean():.2f} °C"
             )
 
             return (
@@ -284,7 +610,9 @@ class DJIThermalSDK:
 
         finally:
             if handle.value:
-                self.lib.dirp_destroy(handle)
+                self.lib.dirp_destroy(
+                    handle
+                )
 
 
 if __name__ == "__main__":
@@ -299,26 +627,88 @@ if __name__ == "__main__":
         / "DJI_20230920123005_0001_T.JPG"
     )
 
-    print(f"Base dir: {base_dir}")
-    print(f"DJI DLL:  {dll_path}")
+    print(
+        f"Base dir: {base_dir}"
+    )
+
+    print(
+        f"DJI DLL:  {dll_path}"
+    )
 
     sdk = DJIThermalSDK(
         dll_path
     )
 
     try:
-        matrix, params = sdk.process_image_info(
-            test_image
+        print()
+        print("=" * 60)
+        print("TEST A - PARAMETRY ZDJĘCIA")
+        print("=" * 60)
+
+        matrix_original, params_original = (
+            sdk.process_image_info(
+                test_image
+            )
         )
 
-        print("\nOdczytane parametry radiometryczne:")
+        print()
+        print("=" * 60)
+        print("TEST B - DISTANCE = 25 m")
+        print("=" * 60)
 
-        for key, value in params.items():
+        matrix_modified, params_modified = (
+            sdk.process_image_info(
+                test_image,
+                measurement_overrides={
+                    "distance": 25.0,
+                }
+            )
+        )
+
+        difference = (
+            matrix_modified
+            - matrix_original
+        )
+
+        print()
+        print("=" * 60)
+        print("PORÓWNANIE")
+        print("=" * 60)
+
+        print(
+            f"Original mean: "
+            f"{matrix_original.mean():.6f} °C"
+        )
+
+        print(
+            f"Modified mean: "
+            f"{matrix_modified.mean():.6f} °C"
+        )
+
+        print(
+            f"Mean change:   "
+            f"{difference.mean():.6f} °C"
+        )
+
+        print(
+            f"Max change:    "
+            f"{np.max(np.abs(difference)):.6f} °C"
+        )
+
+        if np.array_equal(
+            matrix_original,
+            matrix_modified
+        ):
             print(
-                f"- {key}: {value}"
+                "UWAGA: raster się nie zmienił."
+            )
+        else:
+            print(
+                "OK: zmiana parametrów "
+                "wpłynęła na raster temperatur."
             )
 
     except Exception as exc:
         print(
-            f"BŁĄD: {exc}"
+            f"\nBŁĄD: {exc}"
         )

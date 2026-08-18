@@ -229,7 +229,8 @@ def save_temperature_tiff(
 def convert_image(
     sdk,
     image_path,
-    output_dir
+    output_dir,
+    measurement_overrides=None
 ):
     image_path = Path(
         image_path
@@ -250,7 +251,8 @@ def convert_image(
     )
 
     result = sdk.process_image_info(
-        str(image_path)
+        str(image_path),
+        measurement_overrides=measurement_overrides
     )
 
     if result is None:
@@ -381,7 +383,8 @@ def convert_images(
     output_dir,
     dll_path=None,
     progress_callback=None,
-    existing_policy="skip"
+    existing_policy="skip",
+    measurement_overrides=None
 ):
     output_dir = Path(
         output_dir
@@ -482,7 +485,8 @@ def convert_images(
                 ) = convert_image(
                     sdk,
                     image_path,
-                    output_dir
+                    output_dir,
+                    measurement_overrides=measurement_overrides
                 )
 
                 report_rows.append(
@@ -620,7 +624,8 @@ def convert_folder(
     output_dir,
     dll_path=None,
     progress_callback=None,
-    existing_policy="skip"
+    existing_policy="skip",
+    measurement_overrides=None
 ):
     input_dir = Path(
         input_dir
@@ -662,7 +667,8 @@ def convert_folder(
         output_dir=output_dir,
         dll_path=dll_path,
         progress_callback=progress_callback,
-        existing_policy=existing_policy
+        existing_policy=existing_policy,
+        measurement_overrides=measurement_overrides
     )
 
 
@@ -720,17 +726,62 @@ def parse_arguments():
         default="skip"
     )
 
+    parser.add_argument(
+        "--distance",
+        type=float,
+        default=None,
+        help="Override measurement distance in meters."
+    )
+
+    parser.add_argument(
+        "--humidity",
+        type=float,
+        default=None,
+        help="Override relative humidity."
+    )
+
+    parser.add_argument(
+        "--emissivity",
+        type=float,
+        default=None,
+        help="Override surface emissivity."
+    )
+
+    parser.add_argument(
+        "--reflection",
+        type=float,
+        default=None,
+        help="Override reflected temperature in Celsius."
+    )
+
     return parser.parse_args()
 
 
 def main():
     args = parse_arguments()
 
+    measurement_overrides = {
+        "distance": args.distance,
+        "humidity": args.humidity,
+        "emissivity": args.emissivity,
+        "reflection": args.reflection,
+    }
+
+    measurement_overrides = {
+        key: value
+        for key, value in measurement_overrides.items()
+        if value is not None
+    }
+
+    if not measurement_overrides:
+        measurement_overrides = None
+
     convert_folder(
         input_dir=args.input,
         output_dir=args.output,
         dll_path=args.dll,
-        existing_policy=args.existing
+        existing_policy=args.existing,
+        measurement_overrides=measurement_overrides
     )
 
 
