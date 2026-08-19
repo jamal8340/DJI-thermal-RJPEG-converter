@@ -6,6 +6,9 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+
 from converter import (
     convert_folder,
     convert_images,
@@ -14,7 +17,6 @@ from converter import (
 
 from validator import (
     validate_files,
-    save_validation_report,
 )
 
 
@@ -74,6 +76,7 @@ class ConverterGUI:
         self.selection_mode = None
 
         self.last_output_dir = None
+        self.output_manually_selected = False
 
         self.output_path = tk.StringVar(
             value=str(
@@ -570,7 +573,14 @@ class ConverterGUI:
             entry.bind(
                 "<FocusOut>",
                 lambda event, var=variable: (
-                    self.format_radiometry_value(var)
+                    self.on_radiometry_focus_out(var)
+                )
+            )
+
+            entry.bind(
+                "<Return>",
+                lambda event, var=variable: (
+                    self.on_radiometry_focus_out(var)
                 )
             )
 
@@ -682,9 +692,13 @@ class ConverterGUI:
             style="Success.TLabel"
         )
 
+        self.output_manually_selected = False
+
         self.load_source_radiometry(
             self.selected_files[0]
         )
+
+        self.update_auto_output_path()
 
     def select_folder(self):
         folder = filedialog.askdirectory(
@@ -716,6 +730,8 @@ class ConverterGUI:
             text=str(folder_path)
         )
 
+        self.output_manually_selected = False
+
         if files:
             self.input_status.set(
                 f"✓ Folder selected — "
@@ -731,6 +747,8 @@ class ConverterGUI:
                 first_image
             )
 
+            self.update_auto_output_path()
+
         else:
             self.source_radiometry = None
             self.clear_radiometry_fields()
@@ -738,6 +756,8 @@ class ConverterGUI:
             self.input_status.set(
                 "No JPG/JPEG images found"
             )
+
+            self.update_auto_output_path()
 
     def select_output(self):
         folder = filedialog.askdirectory(
@@ -754,8 +774,10 @@ class ConverterGUI:
             folder
         )
 
+        self.output_manually_selected = True
+
         self.output_status.set(
-            "✓ Output folder selected"
+            "✓ Custom output folder selected"
         )
 
         self.last_output_dir = Path(
@@ -793,6 +815,197 @@ class ConverterGUI:
                 "Open folder error",
                 str(exc)
             )
+
+    def on_radiometry_focus_out(self, variable):
+        self.format_radiometry_value(variable)
+
+        if not self.use_image_radiometry.get():
+            self.update_auto_output_path()
+
+    @staticmethod
+    def format_folder_value(value):
+        value = float(value)
+
+        if value.is_integer():
+            return str(int(value))
+
+        return (
+            f"{value:.4f}"
+            .rstrip("0")
+            .rstrip(".")
+        )
+
+    @staticmethod
+    def radiometry_signature(radiometry):
+        return (
+            round(float(radiometry["emissivity"]), 4),
+            round(float(radiometry["distance"]), 4),
+            round(float(radiometry["humidity"]), 4),
+            round(float(radiometry["reflection"]), 4),
+        )
+
+    def get_selected_input_files(self):
+        if self.selection_mode == "files":
+            return sorted(self.selected_files)
+
+        if (
+            self.selection_mode == "folder"
+            and self.input_folder is not None
+            and self.input_folder.exists()
+        ):
+            return sorted(
+                path
+                for path in self.input_folder.iterdir()
+                if path.is_file()
+                and path.suffix.lower()
+                in {".jpg", ".jpeg"}
+            )
+
+        return []
+
+    def get_default_output_parent(self):
+        if self.selection_mode == "folder":
+            return self.input_folder
+
+        if (
+            self.selection_mode == "files"
+            and self.selected_files
+        ):
+            return self.selected_files[0].parent
+
+        return None
+
+    def build_parameter_folder_name(self, radiometry):
+        emissivity = self.format_folder_value(
+            radiometry["emissivity"]
+        )
+        distance = self.format_folder_value(
+            radiometry["distance"]
+        )
+        humidity = self.format_folder_value(
+            radiometry["humidity"]
+        )
+        reflection = self.format_folder_value(
+            radiometry["reflection"]
+        )
+
+        return (
+            f"TIFF_em_{emissivity}"
+            f"_dist_{distance}"
+            f"_hum_{humidity}"
+            f"_refl_{reflection}"
+        )
+
+    def get_source_output_folder_name(self):
+        files = self.get_selected_input_files()
+
+        if not files:
+            return "TIFF_source_params"
+
+        try:
+            sdk = create_sdk()
+            signatures = []
+            first_radiometry = None
+
+            for image_path in files:
+                _, radiometry = sdk.process_image_info(
+                    image_path
+                )
+
+                if first_radiometry is None:
+                    first_radiometry = radiometry
+
+                signatures.append(
+                    self.radiometry_signature(
+                        radiometry
+                    )
+                )
+
+            if (
+                signatures
+                and all(
+                    signature == signatures[0]
+                    for signature in signatures
+                )
+            ):
+                return self.build_parameter_folder_name(
+                    first_radiometry
+                )
+
+        except Exception:
+            pass
+
+        return "TIFF_source_params"
+
+    def get_custom_output_folder_name(self):
+        try:
+            radiometry = {
+                "emissivity": float(
+                    self.emissivity_value
+                    .get()
+                    .strip()
+                    .replace(",", ".")
+                ),
+                "distance": float(
+                    self.distance_value
+                    .get()
+                    .strip()
+                    .replace(",", ".")
+                ),
+                "humidity": float(
+                    self.humidity_value
+                    .get()
+                    .strip()
+                    .replace(",", ".")
+                ),
+                "reflection": float(
+                    self.reflection_value
+                    .get()
+                    .strip()
+                    .replace(",", ".")
+                ),
+            }
+
+        except (TypeError, ValueError):
+            return "TIFF_custom_params"
+
+        return self.build_parameter_folder_name(
+            radiometry
+        )
+
+    def update_auto_output_path(self):
+        if self.output_manually_selected:
+            return
+
+        parent = self.get_default_output_parent()
+
+        if parent is None:
+            return
+
+        if self.use_image_radiometry.get():
+            folder_name = (
+                self.get_source_output_folder_name()
+            )
+        else:
+            folder_name = (
+                self.get_custom_output_folder_name()
+            )
+
+        output_dir = parent / folder_name
+
+        self.output_path.set(
+            str(output_dir)
+        )
+
+        self.output_status.set(
+            "✓ Automatic output folder selected"
+        )
+
+        self.last_output_dir = None
+
+        self.open_output_button.config(
+            state="disabled"
+        )
 
     def format_radiometry_value(self, variable):
         raw_value = variable.get().strip()
@@ -887,6 +1100,9 @@ class ConverterGUI:
                 state=state
             )
 
+        if self.selection_mode is not None:
+            self.update_auto_output_path()
+
     def get_measurement_overrides(self):
         if self.use_image_radiometry.get():
             return None
@@ -972,6 +1188,28 @@ class ConverterGUI:
 
         return values
 
+    def cleanup_old_reports(self, output_dir):
+        output_dir = Path(output_dir)
+
+        report_names = (
+            "conversion_report.csv",
+            "validation_report.csv",
+            "DJI_Thermal_Converter_Report.xlsx",
+        )
+
+        for report_name in report_names:
+            report_path = output_dir / report_name
+
+            if not report_path.exists():
+                continue
+
+            try:
+                report_path.unlink()
+            except OSError:
+                # Do not block conversion if an old report is open
+                # in Excel or cannot be removed for another reason.
+                pass
+
     def start_conversion(self):
         if self.selection_mode is None:
             messagebox.showerror(
@@ -982,6 +1220,9 @@ class ConverterGUI:
                 )
             )
             return
+
+        if not self.output_manually_selected:
+            self.update_auto_output_path()
 
         output_dir = (
             self.output_path
@@ -1008,6 +1249,8 @@ class ConverterGUI:
                 str(exc)
             )
             return
+
+        self.cleanup_old_reports(Path(output_dir))
 
         policy = (
             "overwrite"
@@ -1096,18 +1339,16 @@ class ConverterGUI:
                 result["output_files"]
             )
 
-            validation_report = (
-                Path(output_dir)
-                / "validation_report.csv"
-            )
-
-            save_validation_report(
-                validation,
-                validation_report
-            )
-
             error_details = self.read_conversion_errors(
                 result["report"]
+            )
+
+            self.save_combined_excel_report(
+                conversion_report_path=result["report"],
+                validation=validation,
+                output_dir=output_dir,
+                conversion_result=result,
+                measurement_overrides=measurement_overrides
             )
 
             self.root.after(
@@ -1125,6 +1366,285 @@ class ConverterGUI:
                 self.conversion_error,
                 str(exc)
             )
+
+    @staticmethod
+    def normalize_report_filename(filename):
+        if not filename:
+            return ""
+
+        return Path(str(filename)).stem.lower()
+
+    def save_combined_excel_report(
+        self,
+        conversion_report_path,
+        validation,
+        output_dir,
+        conversion_result,
+        measurement_overrides
+    ):
+        conversion_report_path = Path(
+            conversion_report_path
+        )
+        output_dir = Path(output_dir)
+
+        conversion_rows = []
+        conversion_headers = []
+
+        if conversion_report_path.exists():
+            with conversion_report_path.open(
+                "r",
+                newline="",
+                encoding="utf-8-sig"
+            ) as csv_file:
+                reader = csv.DictReader(csv_file)
+                conversion_headers = list(
+                    reader.fieldnames or []
+                )
+                conversion_rows = list(reader)
+
+        validation_by_file = {}
+
+        for item in validation.get(
+            "results",
+            []
+        ):
+            filename = item.get(
+                "filename",
+                ""
+            )
+            key = self.normalize_report_filename(
+                filename
+            )
+
+            errors = [
+                str(value)
+                for value in item.get(
+                    "errors",
+                    []
+                )
+            ]
+            warnings = [
+                str(value)
+                for value in item.get(
+                    "warnings",
+                    []
+                )
+            ]
+
+            status = item.get("status")
+            if not status:
+                if errors:
+                    status = "FAIL"
+                elif warnings:
+                    status = "WARNING"
+                else:
+                    status = "PASS"
+
+            validation_by_file[key] = {
+                "validation_status": status,
+                "validation_errors": " | ".join(errors),
+                "validation_warnings": " | ".join(warnings),
+            }
+
+        validation_headers = [
+            "validation_status",
+            "validation_errors",
+            "validation_warnings",
+        ]
+
+        workbook = Workbook()
+        results_sheet = workbook.active
+        results_sheet.title = "Results"
+
+        all_headers = (
+            conversion_headers
+            + [
+                header
+                for header in validation_headers
+                if header not in conversion_headers
+            ]
+        )
+
+        if not all_headers:
+            all_headers = [
+                "filename",
+                *validation_headers,
+            ]
+
+        results_sheet.append(all_headers)
+
+        used_validation_keys = set()
+
+        for conversion_row in conversion_rows:
+            filename = (
+                conversion_row.get("filename")
+                or conversion_row.get("source_filename")
+                or conversion_row.get("source")
+                or ""
+            )
+            key = self.normalize_report_filename(
+                filename
+            )
+            validation_row = validation_by_file.get(
+                key,
+                {}
+            )
+
+            if validation_row:
+                used_validation_keys.add(key)
+
+            merged_row = dict(conversion_row)
+            merged_row.update(validation_row)
+
+            results_sheet.append([
+                merged_row.get(header, "")
+                for header in all_headers
+            ])
+
+        for key, validation_row in validation_by_file.items():
+            if key in used_validation_keys:
+                continue
+
+            filename = next(
+                (
+                    item.get("filename", "")
+                    for item in validation.get(
+                        "results",
+                        []
+                    )
+                    if self.normalize_report_filename(
+                        item.get("filename", "")
+                    ) == key
+                ),
+                ""
+            )
+
+            merged_row = {
+                "filename": filename,
+                **validation_row,
+            }
+
+            results_sheet.append([
+                merged_row.get(header, "")
+                for header in all_headers
+            ])
+
+        header_fill = PatternFill(
+            fill_type="solid",
+            fgColor="D39A2C"
+        )
+        header_font = Font(
+            bold=True,
+            color="FFFFFF"
+        )
+
+        for cell in results_sheet[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(
+                horizontal="center",
+                vertical="center"
+            )
+
+        results_sheet.freeze_panes = "A2"
+        results_sheet.auto_filter.ref = (
+            results_sheet.dimensions
+        )
+
+        for column_cells in results_sheet.columns:
+            max_length = 0
+            column_letter = column_cells[0].column_letter
+
+            for cell in column_cells:
+                cell.alignment = Alignment(
+                    vertical="top",
+                    wrap_text=True
+                )
+                value = "" if cell.value is None else str(cell.value)
+                max_length = max(
+                    max_length,
+                    len(value)
+                )
+
+            results_sheet.column_dimensions[
+                column_letter
+            ].width = min(
+                max(max_length + 2, 12),
+                40
+            )
+
+        summary_sheet = workbook.create_sheet(
+            "Summary"
+        )
+
+        summary_rows = [
+            ["DJI Thermal Converter Report", ""],
+            ["Output folder", str(output_dir)],
+            ["Total files", conversion_result.get("total", 0)],
+            ["Converted", conversion_result.get("success", 0)],
+            ["Conversion errors", conversion_result.get("errors", 0)],
+            ["Skipped", conversion_result.get("skipped", 0)],
+            ["Validation PASS", validation.get("passed", 0)],
+            ["Validation WARNING", validation.get("warnings", 0)],
+            ["Validation FAIL", validation.get("failed", 0)],
+        ]
+
+        if measurement_overrides is None:
+            summary_rows.append([
+                "Radiometric mode",
+                "Values stored in each source image"
+            ])
+        else:
+            summary_rows.extend([
+                ["Radiometric mode", "Custom values"],
+                ["Emissivity", measurement_overrides.get("emissivity", "")],
+                ["Distance [m]", measurement_overrides.get("distance", "")],
+                ["Humidity [%]", measurement_overrides.get("humidity", "")],
+                ["Reflected temperature [°C]", measurement_overrides.get("reflection", "")],
+            ])
+
+        for row in summary_rows:
+            summary_sheet.append(row)
+
+        summary_sheet["A1"].font = Font(
+            bold=True,
+            size=14
+        )
+        summary_sheet["A1"].fill = header_fill
+        summary_sheet["A1"].font = Font(
+            bold=True,
+            size=14,
+            color="FFFFFF"
+        )
+        summary_sheet.column_dimensions["A"].width = 28
+        summary_sheet.column_dimensions["B"].width = 55
+
+        for row in summary_sheet.iter_rows():
+            row[0].font = Font(
+                bold=True
+            )
+            for cell in row:
+                cell.alignment = Alignment(
+                    vertical="top",
+                    wrap_text=True
+                )
+
+        report_path = (
+            output_dir
+            / "DJI_Thermal_Converter_Report.xlsx"
+        )
+
+        workbook.save(report_path)
+
+        # The CSV is still used internally by the converter, but after
+        # the final XLSX report is created it is no longer needed by
+        # the user. Keep it only if deleting it fails.
+        try:
+            conversion_report_path.unlink()
+        except OSError:
+            pass
+
+        return report_path
 
     def read_conversion_errors(
         self,
