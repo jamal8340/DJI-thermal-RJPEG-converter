@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import tifffile
 from PIL import Image
 
 from dji_sdk import (
@@ -15,7 +16,7 @@ from dji_sdk import (
 
 from metadata import (
     extract_metadata,
-    get_source_exif_for_tiff,
+    extract_raw_xmp,
 )
 
 
@@ -182,6 +183,56 @@ def build_report_row(
     }
 
 
+def get_basic_exif_tags(
+    source_image
+):
+    """
+    Zwraca podstawowe tagi TIFF/EXIF, które można bezpiecznie
+    zapisać bez tworzenia zagnieżdżonych EXIF/GPS IFD.
+
+    GPS i orientacja DJI są zachowywane przez surowy XMP
+    zapisany w tagu TIFF 700.
+    """
+    source_image = Path(
+        source_image
+    )
+
+    tags = []
+
+    with Image.open(
+        source_image
+    ) as image:
+        exif = image.getexif()
+
+        for tag_id in (
+            271,  # Make
+            272,  # Model
+            306,  # DateTime
+        ):
+            value = exif.get(
+                tag_id
+            )
+
+            if not value:
+                continue
+
+            value = str(
+                value
+            )
+
+            tags.append(
+                (
+                    tag_id,
+                    "s",
+                    len(value) + 1,
+                    value,
+                    True,
+                )
+            )
+
+    return tags
+
+
 def save_temperature_tiff(
     output_path,
     temperature_matrix,
@@ -192,37 +243,68 @@ def save_temperature_tiff(
     Zapisuje:
     - jednopasmowy Float32 TIFF
     - temperaturę w °C
-    - oryginalny EXIF
-    - GPS IFD
-    - DJI XMP
+    - bezstratną kompresję Deflate
+    - podstawowe tagi TIFF/EXIF
+    - surowy DJI XMP w tagu 700
     - nasz JSON w ImageDescription
-    """
 
+    Ten sposób zapisu został przetestowany:
+    - Float32 pozostaje Float32
+    - wartości pikseli są identyczne 1:1
+    - DJI XMP pozostaje obecny
+    - Metashape odczytuje dane referencyjne
+    """
     output_path = Path(
         output_path
+    )
+
+    source_image = Path(
+        source_image
     )
 
     temperature_matrix = (
         temperature_matrix
         .astype(
-            np.float32
+            np.float32,
+            copy=False
         )
     )
 
-    exif = get_source_exif_for_tiff(
-        source_image,
-        image_description=metadata_str
+    extratags = get_basic_exif_tags(
+        source_image
     )
 
-    image = Image.fromarray(
-        temperature_matrix,
-        mode="F"
+    raw_xmp = extract_raw_xmp(
+        source_image
     )
 
-    image.save(
+    if raw_xmp:
+        xmp_bytes = bytes(
+            raw_xmp
+        )
+
+        extratags.append(
+            (
+                700,
+                "B",
+                len(xmp_bytes),
+                xmp_bytes,
+                True,
+            )
+        )
+
+    tifffile.imwrite(
         output_path,
-        format="TIFF",
-        exif=exif.tobytes()
+        temperature_matrix,
+        dtype=np.float32,
+        photometric="minisblack",
+        compression="zlib",
+        compressionargs={
+            "level": 6,
+        },
+        metadata=None,
+        description=metadata_str,
+        extratags=extratags,
     )
 
 
