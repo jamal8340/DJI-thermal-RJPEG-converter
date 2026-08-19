@@ -2,15 +2,39 @@
 
 from pathlib import Path
 
+
 project_dir = Path(SPECPATH)
 tools_dir = project_dir / "tools"
 
+runtime_files = [
+    "libdirp.dll",
+    "libv_dirp.dll",
+    "libv_girp.dll",
+    "libv_iirp.dll",
+    "libv_cirp.dll",
+    "libv_hirp.dll",
+    "libv_list.ini",
+    "MicroIA_Release_x64.dll",
+    "MicroJPEG_Release_x64.dll",
+    "MicroTA_Release_x64.dll",
+    "libexif.dll",
+    "libintl-8.dll",
+    "libiconv-2.dll",
+]
+
 datas = []
 
-if tools_dir.exists():
+for filename in runtime_files:
+    source = tools_dir / filename
+
+    if not source.exists():
+        raise FileNotFoundError(
+            f"Missing required runtime file: {source}"
+        )
+
     datas.append(
         (
-            str(tools_dir),
+            str(source),
             "tools"
         )
     )
