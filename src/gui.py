@@ -20,6 +20,16 @@ from validator import (
 )
 
 
+def resource_path(relative_path):
+    """Return an absolute path for development and PyInstaller onefile builds."""
+    if getattr(sys, "frozen", False):
+        base_path = Path(sys._MEIPASS)
+    else:
+        base_path = Path(__file__).resolve().parent.parent
+
+    return base_path / relative_path
+
+
 BG = "#F7F1E7"
 CARD_BG = "#FFFDF8"
 TEXT = "#171717"
@@ -32,6 +42,16 @@ BORDER = "#DDD5C8"
 class ConverterGUI:
     def __init__(self, root):
         self.root = root
+
+        # Window/taskbar icon. Keep a PhotoImage reference on self so Tkinter
+        # does not garbage-collect it. The PNG is bundled by PyInstaller.
+        try:
+            icon_path = resource_path("assets/app_icon.png")
+            self.app_icon = tk.PhotoImage(file=str(icon_path))
+            self.root.iconphoto(True, self.app_icon)
+        except Exception as exc:
+            # The application must remain usable even if the icon cannot load.
+            print(f"Could not load window icon: {exc}")
 
         self.root.title(
             "DJI Thermal R-JPEG Converter v1.0.0"

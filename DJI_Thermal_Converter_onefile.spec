@@ -1,10 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
-
 from pathlib import Path
-
 
 project_dir = Path(SPECPATH)
 tools_dir = project_dir / "tools"
+assets_dir = project_dir / "assets"
 
 runtime_files = [
     "libdirp.dll",
@@ -22,22 +21,27 @@ runtime_files = [
     "libiconv-2.dll",
 ]
 
+# Files that must be available inside the onefile bundle at runtime.
 datas = []
 
 for filename in runtime_files:
     source = tools_dir / filename
-
     if not source.exists():
-        raise FileNotFoundError(
-            f"Missing required runtime file: {source}"
-        )
+        raise FileNotFoundError(f"Missing required runtime file: {source}")
+    datas.append((str(source), "tools"))
 
-    datas.append(
-        (
-            str(source),
-            "tools"
-        )
-    )
+# app_icon.ico is used by PyInstaller for the EXE itself.
+# app_icon.png is loaded by Tkinter at runtime for the title bar/taskbar icon.
+icon_ico = assets_dir / "app_icon.ico"
+icon_png = assets_dir / "app_icon.png"
+
+if not icon_ico.exists():
+    raise FileNotFoundError(f"Missing EXE icon file: {icon_ico}")
+
+if not icon_png.exists():
+    raise FileNotFoundError(f"Missing GUI icon file: {icon_png}")
+
+datas.append((str(icon_png), "assets"))
 
 
 a = Analysis(
@@ -68,6 +72,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon=str(icon_ico),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
