@@ -1,3 +1,5 @@
+﻿# Portions copyright (c) 2014–Present DJI. All rights reserved.
+
 import re
 from pathlib import Path
 

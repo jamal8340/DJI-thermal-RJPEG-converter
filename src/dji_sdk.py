@@ -1,3 +1,5 @@
+﻿# Portions copyright (c) 2014–Present DJI. All rights reserved.
+
 import ctypes
 import os
 import sys
@@ -424,8 +426,8 @@ if __name__ == "__main__":
         print(f"Parameters: {params_original}")
         print(
             "Temperature range: "
-            f"{matrix_original.min():.2f} °C to "
-            f"{matrix_original.max():.2f} °C"
+            f"{matrix_original.min():.2f} Â°C to "
+            f"{matrix_original.max():.2f} Â°C"
         )
 
         print()
@@ -449,17 +451,17 @@ if __name__ == "__main__":
         print("COMPARISON")
         print("=" * 60)
         print(
-            f"Original mean: {matrix_original.mean():.6f} °C"
+            f"Original mean: {matrix_original.mean():.6f} Â°C"
         )
         print(
-            f"Modified mean: {matrix_modified.mean():.6f} °C"
+            f"Modified mean: {matrix_modified.mean():.6f} Â°C"
         )
         print(
-            f"Mean change:   {difference.mean():.6f} °C"
+            f"Mean change:   {difference.mean():.6f} Â°C"
         )
         print(
             "Max change:    "
-            f"{np.max(np.abs(difference)):.6f} °C"
+            f"{np.max(np.abs(difference)):.6f} Â°C"
         )
 
         if np.array_equal(

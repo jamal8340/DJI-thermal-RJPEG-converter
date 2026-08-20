@@ -1,3 +1,5 @@
+﻿# Portions copyright (c) 2014–Present DJI. All rights reserved.
+
 import csv
 import os
 import sys
@@ -53,7 +55,7 @@ class ConverterGUI:
         self.output_manually_selected = False
         self.output_path = tk.StringVar(value=str(self.default_output))
         self.input_status = tk.StringVar(value='')
-        self.output_status = tk.StringVar(value='✓ Default output folder selected')
+        self.output_status = tk.StringVar(value='âœ“ Default output folder selected')
         self.main_status = tk.StringVar(value='Ready')
         self.overwrite_existing = tk.BooleanVar(value=False)
         self.use_auto_output = tk.BooleanVar(value=True)
@@ -121,7 +123,7 @@ class ConverterGUI:
         title_text = ttk.Frame(title_group, style='Main.TFrame')
         title_text.pack(side='left')
         ttk.Label(title_text, text='Thermal R-JPEG Converter', style='Title.TLabel').pack(anchor='w')
-        ttk.Label(title_text, text='Radiometric DJI imagery → compressed Float32 temperature TIFF', style='Subtitle.TLabel').pack(anchor='w', pady=(3, 0))
+        ttk.Label(title_text, text='Radiometric DJI imagery â†’ compressed Float32 temperature TIFF', style='Subtitle.TLabel').pack(anchor='w', pady=(3, 0))
         io_grid = ttk.Frame(container, style='Main.TFrame')
         io_grid.pack(fill='x', pady=(0, 14))
         io_grid.columnconfigure(0, weight=1, uniform='io')
@@ -164,7 +166,7 @@ class ConverterGUI:
         ttk.Checkbutton(radiometry_header, text='Use values stored in each image', variable=self.use_image_radiometry, style='Custom.TCheckbutton', command=self.toggle_radiometry_fields).pack(side='right', anchor='n', pady=(2, 0))
         radiometry_grid = ttk.Frame(radiometry_card, style='Card.TFrame')
         radiometry_grid.pack(fill='x', pady=(16, 0))
-        labels = [('Emissivity', '0.10-1.00', self.emissivity_value), ('Distance', 'm · 1-25', self.distance_value), ('Humidity', '% · 1-100', self.humidity_value), ('Reflected temperature', '°C · -40-100', self.reflection_value)]
+        labels = [('Emissivity', '0.10-1.00', self.emissivity_value), ('Distance', 'm Â· 1-25', self.distance_value), ('Humidity', '% Â· 1-100', self.humidity_value), ('Reflected temperature', 'Â°C Â· -40-100', self.reflection_value)]
         self.radiometry_entries = []
         for column, (label_text, range_text, variable) in enumerate(labels):
             field = ttk.Frame(radiometry_grid, style='Card.TFrame')
@@ -206,10 +208,10 @@ class ConverterGUI:
         count = len(self.selected_files)
         if count == 1:
             self.input_path_label.config(text=str(self.selected_files[0]))
-            self.input_status.set('✓ 1 image selected')
+            self.input_status.set('âœ“ 1 image selected')
         else:
             self.input_path_label.config(text=str(self.selected_files[0].parent))
-            self.input_status.set(f'✓ {count} images selected')
+            self.input_status.set(f'âœ“ {count} images selected')
         self.input_status_label.configure(style='Success.TLabel')
         if self.use_auto_output.get():
             self.output_manually_selected = False
@@ -229,7 +231,7 @@ class ConverterGUI:
         if self.use_auto_output.get():
             self.output_manually_selected = False
         if files:
-            self.input_status.set(f'✓ Folder selected — {len(files)} image(s) found')
+            self.input_status.set(f'âœ“ Folder selected â€” {len(files)} image(s) found')
             self.input_status_label.configure(style='Success.TLabel')
             first_image = sorted(files)[0]
             self.load_source_radiometry(first_image)
@@ -246,9 +248,9 @@ class ConverterGUI:
             self.change_output_button.config(state='disabled')
             self.update_auto_output_path()
             if self.selection_mode is None:
-                self.output_status.set('✓ Automatic output folder enabled')
+                self.output_status.set('âœ“ Automatic output folder enabled')
             else:
-                self.output_status.set('✓ Automatic output folder selected')
+                self.output_status.set('âœ“ Automatic output folder selected')
         else:
             self.change_output_button.config(state='normal')
             self.output_status.set('Custom output folder mode - choose a location')
@@ -259,7 +261,7 @@ class ConverterGUI:
             return
         self.output_path.set(folder)
         self.output_manually_selected = True
-        self.output_status.set('✓ Custom output folder selected')
+        self.output_status.set('âœ“ Custom output folder selected')
         self.last_output_dir = Path(folder)
         self.open_output_button.config(state='normal')
 
@@ -352,7 +354,7 @@ class ConverterGUI:
             folder_name = self.get_custom_output_folder_name()
         output_dir = parent / folder_name
         self.output_path.set(str(output_dir))
-        self.output_status.set('✓ Automatic output folder selected')
+        self.output_status.set('âœ“ Automatic output folder selected')
         self.last_output_dir = None
         self.open_output_button.config(state='disabled')
 
@@ -410,22 +412,22 @@ class ConverterGUI:
     def get_measurement_overrides(self):
         if self.use_image_radiometry.get():
             return None
-        field_definitions = [{'key': 'emissivity', 'label': 'Emissivity', 'raw': self.emissivity_value.get().strip(), 'minimum': 0.1, 'maximum': 1.0, 'range_text': '0.10–1.00'}, {'key': 'distance', 'label': 'Distance [m]', 'raw': self.distance_value.get().strip(), 'minimum': 1.0, 'maximum': 25.0, 'range_text': '1–25 m'}, {'key': 'humidity', 'label': 'Humidity [%]', 'raw': self.humidity_value.get().strip(), 'minimum': 1.0, 'maximum': 100.0, 'range_text': '1–100%'}, {'key': 'reflection', 'label': 'Reflected temperature [°C]', 'raw': self.reflection_value.get().strip(), 'minimum': -40.0, 'maximum': 100.0, 'range_text': '-40–100 °C'}]
+        field_definitions = [{'key': 'emissivity', 'label': 'Emissivity', 'raw': self.emissivity_value.get().strip(), 'minimum': 0.1, 'maximum': 1.0, 'range_text': '0.10â€“1.00'}, {'key': 'distance', 'label': 'Distance [m]', 'raw': self.distance_value.get().strip(), 'minimum': 1.0, 'maximum': 25.0, 'range_text': '1â€“25 m'}, {'key': 'humidity', 'label': 'Humidity [%]', 'raw': self.humidity_value.get().strip(), 'minimum': 1.0, 'maximum': 100.0, 'range_text': '1â€“100%'}, {'key': 'reflection', 'label': 'Reflected temperature [Â°C]', 'raw': self.reflection_value.get().strip(), 'minimum': -40.0, 'maximum': 100.0, 'range_text': '-40â€“100 Â°C'}]
         values = {}
         errors = []
         for field in field_definitions:
             raw_value = field['raw']
             label = field['label']
             if not raw_value:
-                errors.append(f"• {label}: value is required (allowed: {field['range_text']})")
+                errors.append(f"â€¢ {label}: value is required (allowed: {field['range_text']})")
                 continue
             try:
                 value = float(raw_value.replace(',', '.'))
             except ValueError:
-                errors.append(f"• {label}: '{raw_value}' is not a valid number (allowed: {field['range_text']})")
+                errors.append(f"â€¢ {label}: '{raw_value}' is not a valid number (allowed: {field['range_text']})")
                 continue
             if not field['minimum'] <= value <= field['maximum']:
-                errors.append(f"• {label}: {raw_value} is outside the allowed range ({field['range_text']})")
+                errors.append(f"â€¢ {label}: {raw_value} is outside the allowed range ({field['range_text']})")
                 continue
             values[field['key']] = value
         if errors:
@@ -564,7 +566,7 @@ class ConverterGUI:
         if measurement_overrides is None:
             summary_rows.append(['Radiometric mode', 'Values stored in each source image'])
         else:
-            summary_rows.extend([['Radiometric mode', 'Custom values'], ['Emissivity', measurement_overrides.get('emissivity', '')], ['Distance [m]', measurement_overrides.get('distance', '')], ['Humidity [%]', measurement_overrides.get('humidity', '')], ['Reflected temperature [°C]', measurement_overrides.get('reflection', '')]])
+            summary_rows.extend([['Radiometric mode', 'Custom values'], ['Emissivity', measurement_overrides.get('emissivity', '')], ['Distance [m]', measurement_overrides.get('distance', '')], ['Humidity [%]', measurement_overrides.get('humidity', '')], ['Reflected temperature [Â°C]', measurement_overrides.get('reflection', '')]])
         for row in summary_rows:
             summary_sheet.append(row)
         summary_sheet['A1'].font = Font(bold=True, size=14)
@@ -614,11 +616,11 @@ class ConverterGUI:
                     warning_text = f'missing optional metadata: {field}'
                 elif 'UTCAtExposure' in warning_text:
                     warning_text = 'missing optional metadata: UTCAtExposure'
-                warnings.append(f'{filename} — {warning_text}')
+                warnings.append(f'{filename} â€” {warning_text}')
         return warnings
 
     def set_validation_status(self):
-        self.main_status.set('Conversion complete — validating TIFF files...')
+        self.main_status.set('Conversion complete â€” validating TIFF files...')
 
     def progress_callback(self, current, total, success, errors, skipped):
         if total <= 0:
@@ -635,7 +637,7 @@ class ConverterGUI:
             status_parts.append(f'Failed: {errors}')
         if skipped > 0:
             status_parts.append(f'Skipped: {skipped}')
-        self.main_status.set('  •  '.join(status_parts))
+        self.main_status.set('  â€¢  '.join(status_parts))
 
     def conversion_success(self, result, validation, output_dir, error_details):
         self.last_output_dir = Path(output_dir)
@@ -663,7 +665,7 @@ class ConverterGUI:
             status_parts.append(f'{failed} failed validation')
         if skipped > 0:
             status_parts.append(f'{skipped} skipped')
-        self.main_status.set(' • '.join(status_parts))
+        self.main_status.set(' â€¢ '.join(status_parts))
         message_lines = []
         if conversion_errors == 0 and failed == 0:
             message_lines.append('Conversion completed successfully')
