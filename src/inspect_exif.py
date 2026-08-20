@@ -1,39 +1,44 @@
-import re
 from pathlib import Path
 
-import exifread
+from metadata import extract_dji_xmp, extract_exif
 
 
-base_dir = Path(__file__).resolve().parent.parent
-image_path = base_dir / "data" / "input" / "DJI_20230920123005_0001_T.JPG"
+def main():
+    """Print EXIF and DJI XMP metadata from a development test image."""
+    base_dir = Path(__file__).resolve().parent.parent
+    image_path = (
+        base_dir
+        / "data"
+        / "input"
+        / "DJI_20230920123005_0001_T.JPG"
+    )
 
+    if not image_path.exists():
+        raise FileNotFoundError(f"Test image not found: {image_path}")
 
-with image_path.open("rb") as image_file:
-    tags = exifread.process_file(image_file, details=True)
+    exif_data = extract_exif(image_path)
+    dji_xmp = extract_dji_xmp(image_path)
 
-print("\n=== EXIF ===")
-print(f"File: {image_path.name}")
-print(f"EXIF tags found: {len(tags)}")
-print("=" * 80)
+    print("\n=== EXIF ===")
+    print(f"File: {image_path.name}")
+    print(f"EXIF fields found: {len(exif_data)}")
+    print("=" * 80)
 
-for name, value in sorted(tags.items()):
-    if name != "JPEGThumbnail":
+    for name, value in sorted(exif_data.items()):
         print(f"{name}: {value}")
 
+    print("\n=== DJI XMP ===")
+    print("=" * 80)
 
-file_data = image_path.read_bytes()
-text = file_data.decode("utf-8", errors="ignore")
+    if not dji_xmp:
+        print("No DJI XMP fields found.")
+        return
 
-pattern = r'drone-dji:([A-Za-z0-9_]+)\s*=\s*["\']([^"\']*)["\']'
-dji_xmp = re.findall(pattern, text)
-
-print("\n=== DJI XMP ===")
-print("=" * 80)
-
-if dji_xmp:
     print(f"DJI XMP fields found: {len(dji_xmp)}\n")
 
-    for name, value in dji_xmp:
+    for name, value in sorted(dji_xmp.items()):
         print(f"{name}: {value}")
-else:
-    print("No DJI XMP fields found.")
+
+
+if __name__ == "__main__":
+    main()

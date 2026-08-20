@@ -1,108 +1,62 @@
 import sys
 from pathlib import Path
 
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SRC_DIR = PROJECT_ROOT / "src"
-
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
 from validator import validate_files
 
 
 def main():
-    output_dir = PROJECT_ROOT / "data" / "output"
+    """Validate all TIFF files in the default development output directory."""
+    project_root = Path(__file__).resolve().parent.parent
+    output_dir = project_root / "data" / "output"
 
     if not output_dir.exists():
-        print(f"Folder nie istnieje: {output_dir}")
+        print(f"Output folder does not exist: {output_dir}")
         return
 
-    tiff_files = sorted([
+    tiff_files = sorted(
         path
         for path in output_dir.iterdir()
         if path.is_file()
         and path.suffix.lower() in {".tif", ".tiff"}
-    ])
+    )
 
     if not tiff_files:
-        print("Brak plików TIFF do walidacji.")
+        print("No TIFF files found for validation.")
         return
 
-    print(
-        f"Walidacja {len(tiff_files)} plików TIFF...\n"
-    )
-
-    validation = validate_files(
-        tiff_files
-    )
+    print(f"Validating {len(tiff_files)} TIFF files...\n")
+    validation = validate_files(tiff_files)
 
     for result in validation["results"]:
-        filename = result["filename"]
-        status = result["status"]
+        print(f"[{result['status']}] {result['filename']}")
 
-        print(
-            f"[{status}] {filename}"
-        )
+        for error in result.get("errors", []):
+            print(f"    ERROR: {error}")
 
-        for error in result.get(
-            "errors",
-            []
-        ):
-            print(
-                f"       ERROR: {error}"
-            )
-
-        for warning in result.get(
-            "warnings",
-            []
-        ):
-            print(
-                f"       WARNING: {warning}"
-            )
+        for warning in result.get("warnings", []):
+            print(f"    WARNING: {warning}")
 
     print()
     print("=" * 50)
-    print("PODSUMOWANIE WALIDACJI")
-
-    print(
-        f"PASS:     {validation['passed']}"
-    )
-
-    print(
-        f"WARNING:  {validation['warnings']}"
-    )
-
-    print(
-        f"FAIL:     {validation['failed']}"
-    )
-
-    print(
-        f"RAZEM:    {validation['total']}"
-    )
-
+    print("VALIDATION SUMMARY")
+    print(f"PASS:     {validation['passed']}")
+    print(f"WARNING:  {validation['warnings']}")
+    print(f"FAIL:     {validation['failed']}")
+    print(f"TOTAL:    {validation['total']}")
     print()
 
     if validation["failed"] > 0:
-        print(
-            "BŁĄD - część TIFF-ów nie przeszła walidacji."
-        )
+        print("ERROR: some TIFF files failed validation.")
+        sys.exit(1)
 
-    elif validation["warnings"] > 0:
+    if validation["warnings"] > 0:
         print(
-            "OK - wszystkie TIFF-y są używalne."
+            "OK: all TIFF files are usable, but some contain "
+            "non-critical metadata warnings."
         )
+        return
 
-        print(
-            "Niektóre pliki mają tylko ostrzeżenia "
-            "dotyczące opcjonalnych metadanych."
-        )
-
-    else:
-        print(
-            "OK - wszystkie TIFF-y przeszły "
-            "walidację bez ostrzeżeń."
-        )
+    print("OK: all TIFF files passed validation without warnings.")
 
 
 if __name__ == "__main__":

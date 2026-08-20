@@ -1,30 +1,37 @@
 ﻿import sys
 from pathlib import Path
 
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 
-sys.path.insert(0, str(SRC_DIR))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 from validator import validate_files
 
 
 def main():
+    """Validate all TIFF files in the default development output directory."""
     output_dir = PROJECT_ROOT / "data" / "output"
 
-    tiff_files = sorted([
+    if not output_dir.exists():
+        raise FileNotFoundError(
+            f"Output folder does not exist: {output_dir}"
+        )
+
+    tiff_files = sorted(
         path
         for path in output_dir.iterdir()
         if path.is_file()
         and path.suffix.lower() in {".tif", ".tiff"}
-    ])
+    )
 
     if not tiff_files:
-        print("Brak plików TIFF.")
+        print("No TIFF files found.")
         return
 
-    print(f"Walidacja {len(tiff_files)} plików TIFF...\n")
-
+    print(f"Validating {len(tiff_files)} TIFF files...\n")
     validation = validate_files(tiff_files)
 
     for result in validation["results"]:
@@ -38,28 +45,25 @@ def main():
 
     print()
     print("=" * 50)
-    print("PODSUMOWANIE WALIDACJI")
+    print("VALIDATION SUMMARY")
     print(f"PASS:     {validation['passed']}")
     print(f"WARNING:  {validation['warnings']}")
     print(f"FAIL:     {validation['failed']}")
-    print(f"RAZEM:    {validation['total']}")
+    print(f"TOTAL:    {validation['total']}")
     print()
 
     if validation["failed"] > 0:
-        print("BŁĄD - część TIFF-ów nie przeszła walidacji.")
+        print("FAIL: some TIFF files did not pass validation.")
+        raise SystemExit(1)
 
-    elif validation["warnings"] > 0:
-        print("OK - wszystkie TIFF-y są używalne.")
+    if validation["warnings"] > 0:
         print(
-            "Niektóre pliki mają tylko ostrzeżenia "
-            "dotyczące opcjonalnych metadanych."
+            "PASS WITH WARNINGS: all TIFF files are usable, "
+            "but some contain non-critical metadata warnings."
         )
+        return
 
-    else:
-        print(
-            "OK - wszystkie TIFF-y przeszły "
-            "walidację bez ostrzeżeń."
-        )
+    print("PASS: all TIFF files passed validation without warnings.")
 
 
 if __name__ == "__main__":

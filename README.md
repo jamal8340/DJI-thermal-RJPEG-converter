@@ -2,49 +2,50 @@
 
 Tool for converting radiometric DJI thermal R-JPEG images into single-band Float32 TIFF files containing temperature values in degrees Celsius.
 
-The project uses the official DJI Thermal SDK for radiometric decoding and temperature calculation.
+The converter uses the DJI Thermal SDK for radiometric decoding and temperature calculation and is designed for batch processing and photogrammetry workflows such as Agisoft Metashape.
 
-The converter is designed for batch processing of DJI thermal imagery and for use in workflows such as Agisoft Metashape.
+## Features
 
-## Current features
-
-- DJI R-JPEG decoding using the official DJI Thermal SDK
-- Float32 temperature raster generation
-- Single-band TIFF output
+- DJI radiometric R-JPEG decoding
+- Float32 temperature raster output
 - Temperature values stored directly in °C
-- Lossless Deflate compression of output TIFF files
-- Significantly reduced TIFF file size compared with uncompressed Float32 output
-- EXIF metadata extraction
-- DJI XMP metadata extraction
-- Radiometric parameter extraction
-- User-configurable radiometric parameters
-- Option to use radiometric parameters stored in each source R-JPEG
-- Custom emissivity setting
-- Custom measurement distance setting
-- Custom humidity setting
-- Custom reflected temperature setting
-- Validation of custom radiometric parameter ranges
-- GPS metadata preservation
-- Altitude metadata preservation
-- Gimbal and flight orientation preservation
-- Batch folder conversion
-- Multiple file conversion
+- Lossless Deflate TIFF compression
+- Batch folder and multi-file conversion
+- EXIF and DJI XMP metadata preservation
+- GPS, altitude and orientation metadata preservation
+- Source or custom radiometric parameters
+- Custom emissivity
+- Custom distance
+- Custom humidity
+- Custom reflected temperature
+- Automatic radiometric parameter validation
 - Automatic output folder generation
-- Output folder naming based on radiometric parameters
-- Detection of mixed source radiometric parameters
-- Manual output folder override
-- Existing TIFF handling
-- Skip existing files
-- Overwrite existing files
+- Skip / overwrite handling
 - Conversion progress tracking
-- Conversion error handling
 - Automatic TIFF validation
 - PASS / WARNING / FAIL validation statuses
 - Unified Excel conversion and validation report
-- Validation against official DJI reference tools
+- Windows executable packaging with PyInstaller
 - Tested with Agisoft Metashape
-- Portable Windows executable packaging
-- Minimal DJI runtime packaging for Windows executable builds
+
+## Radiometric processing
+
+The converter can use the radiometric parameters stored in each source DJI R-JPEG or apply custom values selected by the user.
+
+Supported configurable parameters:
+
+- Emissivity: 0.10–1.00
+- Distance: 1–25 m
+- Humidity: 1–100%
+- Reflected temperature: -40–100 °C
+
+When `Use values stored in each image` is enabled, every image uses its own radiometric parameters stored in the source R-JPEG.
+
+The values displayed in the GUI are only a preview from the first selected image.
+
+When source values are disabled, custom parameters are applied to all images in the current batch.
+
+Temperature calculation is performed by the DJI Thermal SDK. The converter does not implement or modify the proprietary DJI radiometric algorithm.
 
 ## Output
 
@@ -53,109 +54,122 @@ Each converted TIFF contains:
 - one Float32 raster band
 - temperature values in °C
 - lossless Deflate compression
-- DJI XMP metadata
-- GPS metadata
-- altitude metadata
-- gimbal and flight orientation metadata
+- converter metadata in `ImageDescription`
+- DJI XMP metadata in TIFF tag 700
+- TIFF Make / Model / DateTime tags
 - radiometric parameters used during conversion
-- standard TIFF Make / Model / DateTime tags
-- additional converter metadata stored in `ImageDescription`
 
-The output TIFF is designed to preserve both radiometric temperature values and metadata required by photogrammetry software such as Agisoft Metashape.
-
-For a typical 640 × 512 DJI thermal image, an uncompressed Float32 TIFF is approximately 1.3 MB.
-
-With lossless Deflate compression, tested output files are typically approximately 230–250 KB while preserving the original Float32 temperature values.
-
-## Radiometric parameters
-
-The converter can either use radiometric parameters stored in each source DJI R-JPEG or apply custom values selected by the user.
-
-Supported configurable parameters are:
-
-- Emissivity
-- Distance
-- Humidity
-- Reflected temperature
-
-The GUI contains the option:
-
-`Use values stored in each image`
-
-When this option is enabled, each image is converted using its own radiometric parameters stored in the original DJI R-JPEG.
-
-The displayed values are loaded from the first selected source image for reference.
-
-During batch processing, every image continues to use its own stored parameters even though the GUI preview shows values from only the first selected image.
-
-When the option is disabled, the user can enter custom values that are applied to all images in the current conversion batch.
-
-Supported ranges, based on the DJI Thermal SDK used by the project, are:
-
-- Emissivity: 0.10–1.00
-- Distance: 1–25 m
-- Humidity: 1–100%
-- Reflected temperature: -40–100 °C
-
-The GUI validates all entered parameters before conversion.
-
-If multiple values are invalid, all detected errors are shown together.
-
-Numeric values may be entered using either a dot or comma as the decimal separator.
-
-Examples:
-
-22 -> 22.0
-
-0,95 -> 0.95
-
-25 -> 25.0
-
-Formatting is applied when the field loses focus or when Enter is pressed.
-
-Custom values are passed to the official DJI Thermal SDK before temperature calculation using the SDK measurement parameter API.
-
-The converter does not modify calculated temperatures manually after decoding.
-
-Changing a measurement parameter causes the DJI SDK to recalculate the complete temperature raster using the selected settings.
+The generated TIFF files are intended to retain metadata required by downstream photogrammetry workflows.
 
 ## Automatic output folders
 
-The GUI automatically proposes an output folder based on the selected input location and radiometric parameters.
+The GUI can automatically create an output folder next to the selected input data.
 
-For a selected folder:
+When all selected source images use identical radiometric parameters, the folder name includes those values, for example:
 
-D:\Project\Thermal
+`TIFF_em_0.95_dist_25_hum_50_refl_25`
 
-the output folder is created inside the selected input directory.
+If source images contain different radiometric parameters:
 
-For a selected image:
+`TIFF_source_params`
 
-D:\Project\Thermal\DJI_0001_T.JPG
+For custom radiometric parameters, the output folder name is generated from the selected values.
 
-the output folder is created in the same directory as the image.
+Automatic output can be disabled using:
 
-When multiple selected images are located in the same directory, the output folder is also created in that directory.
+`Use automatic output folder`
 
-If all selected source images use identical stored radiometric parameters, the output folder name contains those parameters.
+A custom output location can then be selected manually.
 
-Example:
+## GUI
 
-TIFF_em_0.95_dist_25_hum_50_refl_25
+Run:
 
-If the selected images contain different stored radiometric parameters, the default output folder is:
+`python src\gui.py`
 
-TIFF_source_params
+The GUI allows the user to:
 
-If custom radiometric values are enabled, the folder name is generated from the selected custom values.
+- select individual images or a folder
+- configure radiometric parameters
+- select automatic or manual output
+- skip or overwrite existing TIFF files
+- monitor conversion progress
+- view validation results
+- generate the final Excel report
+- open the output folder after processing
 
-Example:
+## Command-line conversion
 
-TIFF_em_0.90_dist_25_hum_60_refl_20
+Default input and output folders:
 
-The automatically selected path is only a default.
+`python src\converter.py`
 
-The user can always choose a different output location using the `Change output folder` button.
+Custom folders:
+
+`python src\converter.py "path\to\input" "path\to\output"`
+
+Overwrite existing TIFF files:
+
+`python src\converter.py "path\to\input" "path\to\output" --existing overwrite`
+
+Example with custom radiometric parameters:
+
+`python src\converter.py "path\to\input" "path\to\output" --distance 25 --humidity 60 --emissivity 0.90 --reflection 20`
+
+If custom parameters are not provided, values stored in each R-JPEG are used.
+
+## Validation
+
+The converter validates generated TIFF files after GUI conversion.
+
+Checks include:
+
+- single-band raster structure
+- Float32 data type
+- finite temperature values
+- raster dimensions
+- temperature metadata consistency
+- radiometric parameters
+- DJI XMP metadata
+- GPS and altitude
+- gimbal orientation
+
+Statuses:
+
+- `PASS` — all required checks passed
+- `WARNING` — TIFF is valid but optional metadata is missing
+- `FAIL` — a critical validation problem was detected
+
+Manual validation:
+
+`python tests\validate_tiff.py`
+
+## Excel report
+
+After GUI processing, the application creates:
+
+`DJI_Thermal_Converter_Report.xlsx`
+
+The workbook contains:
+
+- `Results` — per-image conversion and validation information
+- `Summary` — batch statistics and radiometric mode
+
+Intermediate CSV reports are used internally and are not intended to remain in the final output folder.
+
+## Agisoft Metashape
+
+Generated TIFF files have been tested in Agisoft Metashape.
+
+The workflow has been verified for:
+
+- reference metadata import
+- camera alignment
+- point cloud generation
+- DEM generation
+- thermal orthomosaic generation
+
+DJI and Metashape may use different orientation conventions, so displayed pitch, yaw and roll values do not always use identical numeric representations.
 
 ## Project structure
 
@@ -167,13 +181,15 @@ DJI-thermal-RJPEG-converter/
 │   ├── validator.py
 │   ├── gui.py
 │   ├── inspect_exif.py
-│   └── inspect_radiometry.py
+│   ├── inspect_radiometry.py
+│   └── validate_tiff.py
 ├── tests/
 │   ├── validate_tiff.py
 │   ├── compare_with_dji.py
 │   ├── orthomosaic_test.py
 │   ├── test_tifffile_deflate.py
 │   └── test_tifffile_deflate_batch.py
+├── assets/
 ├── tools/
 ├── tools_dev/
 ├── data/
@@ -184,49 +200,19 @@ DJI-thermal-RJPEG-converter/
 ├── .gitignore
 └── README.md
 
-## Runtime files
-
-The final Windows executable uses only the DJI runtime components required by the application.
-
-The `tools/` directory contains:
-
-- libdirp.dll
-- libv_dirp.dll
-- libv_girp.dll
-- libv_iirp.dll
-- libv_cirp.dll
-- libv_hirp.dll
-- libv_list.ini
-- MicroIA_Release_x64.dll
-- MicroJPEG_Release_x64.dll
-- MicroTA_Release_x64.dll
-- libexif.dll
-- libintl-8.dll
-- libiconv-2.dll
-
-DJI development utilities, import libraries, documentation, datasets and SDK sample files are not included in the production runtime package.
-
-Development-only DJI command-line utilities may be kept locally in:
-
-tools_dev/
-
-This directory is ignored by Git and is not included in production builds.
-
 ## Installation
 
-Create a virtual environment:
+Create and activate a virtual environment:
 
-py -m venv .venv
+`py -m venv .venv`
 
-Activate it:
-
-.\.venv\Scripts\Activate.ps1
+`.\.venv\Scripts\Activate.ps1`
 
 Install dependencies:
 
-pip install -r requirements.txt
+`pip install -r requirements.txt`
 
-Main Python dependencies include:
+Main Python dependencies:
 
 - NumPy
 - Pillow
@@ -235,452 +221,39 @@ Main Python dependencies include:
 
 PyInstaller is used for Windows executable builds.
 
-## GUI
+## Windows executable
 
-Run the graphical interface:
+Production onefile build:
 
-python src\gui.py
+`pyinstaller --noconfirm --clean DJI_Thermal_Converter_onefile.spec`
 
-The GUI allows the user to:
+Output:
 
-- select one or multiple DJI thermal R-JPEG images
-- select a folder containing thermal images
-- automatically generate an output folder
-- manually choose a different output folder
-- use radiometric parameters stored in each source image
-- enter custom emissivity
-- enter custom measurement distance
-- enter custom humidity
-- enter custom reflected temperature
-- validate custom radiometric parameters
-- optionally overwrite existing TIFF files
-- monitor conversion progress
-- view conversion and validation status
-- generate a final Excel report
-- open the output folder after processing
+`dist\DJI_Thermal_Converter.exe`
 
-Existing TIFF files are skipped by default unless the overwrite option is enabled.
-
-When custom radiometric parameters are enabled, the same selected values are applied to all images in the current conversion batch.
-
-When `Use values stored in each image` is enabled, every source R-JPEG uses its own stored radiometric values.
-
-## Command-line conversion
-
-Place DJI thermal R-JPEG files in:
-
-data/input/
-
-Run:
-
-python src\converter.py
-
-Converted TIFF files and the internal conversion report are written to the configured output directory.
-
-A custom input and output folder can also be provided:
-
-python src\converter.py "path\to\input" "path\to\output"
-
-Existing files are skipped by default.
-
-To overwrite them:
-
-python src\converter.py "path\to\input" "path\to\output" --existing overwrite
-
-Custom radiometric parameters can also be provided from the command line.
-
-Example:
-
-python src\converter.py "path\to\input" "path\to\output" --distance 25 --humidity 60 --emissivity 0.90 --reflection 20 --existing overwrite
-
-Available radiometric arguments are:
-
---distance
-
---humidity
-
---emissivity
-
---reflection
-
-If these arguments are not provided, the values stored in each DJI R-JPEG are used.
-
-## Error handling
-
-The converter processes files independently.
-
-A single invalid or corrupted image does not stop the entire batch.
-
-Current error categories include:
-
-INVALID_RJPEG
-
-DJI_SDK_ERROR
-
-UNEXPECTED_ERROR
-
-For example, a normal JPEG image without DJI radiometric data is rejected as an invalid DJI R-JPEG while the remaining thermal images continue processing.
-
-Invalid custom radiometric values are rejected before temperature calculation.
-
-The DJI SDK parameter ranges are also checked before applying custom measurement parameters.
-
-## TIFF compression
-
-Output TIFF files use lossless Deflate compression.
-
-Compression is applied using `tifffile`.
-
-The compression implementation has been internally tested against uncompressed Float32 output.
-
-For the tested DJI 640 × 512 thermal images:
-
-Uncompressed TIFF size: approximately 1.32 MB
-
-Compressed TIFF size: approximately 230–250 KB
-
-The compression is lossless and does not alter the Float32 temperature raster.
-
-Compressed TIFF files were also successfully imported into Agisoft Metashape with reference metadata available.
-
-## TIFF validation
-
-Automatic validation is performed after GUI conversion.
-
-Validation can also be run manually:
-
-python tests\validate_tiff.py
-
-The validator checks:
-
-- single-band raster structure
-- Float32 data type
-- raster dimensions
-- finite temperature values
-- temperature metadata consistency
-- minimum and maximum temperature consistency
-- standard TIFF tags
-- radiometric parameters
-- DJI XMP metadata
-- GPS
-- altitude
-- gimbal orientation
-- timestamps
-- additional metadata
-
-Validation statuses:
-
-PASS means the TIFF passed all required checks.
-
-WARNING means the TIFF is valid and usable, but optional metadata is missing.
-
-Example:
-
-Brak opcjonalnego DJI XMP: UTCAtExposure
-
-A WARNING does not prevent the TIFF from being used.
-
-FAIL means a critical validation problem was detected, for example:
-
-- invalid raster structure
-- wrong data type
-- missing required temperature metadata
-- invalid dimensions
-- missing required DJI XMP fields
-- NaN or Inf values
-
-Example internal batch validation result:
-
-PASS:     124
-WARNING:  5
-FAIL:     0
-RAZEM:    129
-
-The same validation status was maintained after switching the production TIFF output to Deflate compression.
-
-## Unified Excel report
-
-After GUI processing, the application generates one final report:
-
-DJI_Thermal_Converter_Report.xlsx
-
-The report combines conversion and validation information into a single workbook.
-
-The workbook contains a `Results` sheet with per-image data and a `Summary` sheet with batch-level information.
-
-The Results sheet can contain information such as:
-
-- source filename
-- conversion status
-- validation status
-- validation warnings
-- validation errors
-- image dimensions
-- minimum temperature
-- maximum temperature
-- emissivity
-- humidity
-- measurement distance
-- reflected temperature
-- ambient temperature
-- GPS coordinates
-- absolute altitude
-- relative altitude
-- gimbal orientation
-- flight orientation
-- exposure timestamp
-- camera serial number
-- drone serial number
-- output TIFF path
-- conversion error information
-
-The Summary sheet provides batch-level information such as:
-
-- total files
-- successfully converted files
-- skipped files
-- conversion errors
-- PASS count
-- WARNING count
-- FAIL count
-- radiometric parameter mode
-
-Previous intermediate CSV reports are not intended to remain in the final user output folder.
-
-The GUI removes old report files before generating the new final report.
-
-## DJI reference validation
-
-The converter has been internally validated against the official DJI reference utility using representative source R-JPEG images and equivalent radiometric parameters.
-
-Development-only DJI utilities are stored outside the production runtime directory.
-
-Example internal development command:
-
-tools_dev\dji_irp.exe -s data\input\DJI_20230920123005_0001_T.JPG -a measure -o data\reference\official.raw --measurefmt float32
-
-The project includes development tools for internal comparison of converter output with official DJI reference output.
-
-Detailed evaluation results are kept as internal development and validation information rather than published as product claims.
-
-## Custom radiometric parameter validation
-
-Custom radiometric parameter handling has also been internally validated against the official DJI reference utility using equivalent measurement settings.
-
-The custom values are passed to `dirp_set_measurement_params` before `dirp_measure_ex`.
-
-This verifies that custom parameter handling is performed through the DJI SDK rather than by modifying the resulting temperature raster after conversion.
-
-## Agisoft Metashape compatibility
-
-The generated TIFF files have been tested in Agisoft Metashape.
-
-Metashape successfully reads reference metadata from the converted TIFF files, including:
-
-- Longitude
-- Latitude
-- Altitude
-- Yaw
-- Pitch
-- Roll
-
-Both development TIFF files and Deflate-compressed production TIFF files were tested.
-
-The compressed production TIFF files retained the required reference information in Metashape.
-
-A representative thermal image batch was successfully imported into Metashape.
-
-The test workflow successfully produced:
-
-- camera alignment
-- depth maps
-- point cloud
-- DEM
-- thermal orthomosaic
-
-Individual images may remain unaligned due to image matching or scene characteristics.
-
-This does not by itself indicate a TIFF conversion failure.
-
-The thermal TIFF files can also be used together with RGB imagery in photogrammetry workflows when required by the project.
-
-## Orientation metadata
-
-DJI gimbal orientation values and Metashape orientation values may use different angle conventions.
-
-For example, DJI gimbal pitch values and Metashape camera pitch values may not be numerically identical even when they describe the same camera orientation.
-
-This is caused by differences in coordinate and orientation conventions and does not indicate metadata corruption.
-
-DJI gimbal and flight orientation metadata are preserved from the original source image.
-
-## Orthomosaic test
-
-A Metashape thermal orthomosaic was exported as Float32 TIFF and inspected using:
-
-python tests\orthomosaic_test.py
-
-The exported orthomosaic retained Float32 raster data.
-
-The exported file contained:
-
-- channel 1: temperature raster
-- channel 2: alpha / valid pixel mask
-
-The orthomosaic generation process is performed by Metashape and may include interpolation and resampling.
-
-These operations are separate from the source R-JPEG to TIFF conversion performed by this project.
-
-## DJI metadata preservation
-
-The converter preserves important metadata from the source DJI R-JPEG image.
-
-Important DJI XMP fields include:
-
-GpsLatitude
-
-GpsLongitude
-
-AbsoluteAltitude
-
-RelativeAltitude
-
-GimbalRollDegree
-
-GimbalYawDegree
-
-GimbalPitchDegree
-
-FlightRollDegree
-
-FlightYawDegree
-
-FlightPitchDegree
-
-UTCAtExposure
-
-CameraSerialNumber
-
-DroneSerialNumber
-
-Metadata that is not present in the original DJI R-JPEG cannot be recreated by the converter.
-
-Some metadata fields, such as `UTCAtExposure`, may be absent in individual source images.
-
-These cases are reported as validation warnings rather than conversion failures.
+The production build includes only the required DJI runtime components and application assets.
 
 ## DJI Thermal SDK
 
-The project uses the official DJI Thermal SDK.
+The converter uses the DJI Thermal SDK API for:
 
-The converter does not implement proprietary DJI radiometric decoding itself.
+- R-JPEG decoding
+- image resolution
+- radiometric parameter extraction
+- radiometric parameter overrides
+- temperature raster calculation
 
-Temperature values are calculated through the official DJI SDK API.
+DJI SDK binaries and redistribution are subject to DJI licensing terms.
 
-Main SDK operations currently used include:
+Only runtime components required by the application should be included in production builds.
 
-dirp_create_from_rjpeg
-
-dirp_get_rjpeg_resolution
-
-dirp_measure_ex
-
-dirp_get_measurement_params
-
-dirp_set_measurement_params
-
-dirp_get_measurement_params_range
-
-dirp_destroy
-
-The converter uses `dirp_get_measurement_params` to read radiometric settings stored in the source R-JPEG.
-
-When the user provides custom radiometric parameters, the converter uses `dirp_set_measurement_params` before temperature calculation.
-
-Supported parameter ranges are validated according to DJI Thermal SDK measurement parameter ranges.
-
-DJI SDK binaries and their redistribution are subject to DJI licensing terms.
-
-The production application includes only runtime components required by the converter.
-
-SDK development files, source samples, documentation, datasets, utility executables and import libraries are not included in the production executable package.
-
-Third-party software and runtime components are documented in:
-
-THIRD_PARTY_NOTICES.txt
-
-Redistribution and internal deployment should follow the applicable DJI and third-party license terms.
-
-## Compatibility with other DJI thermal cameras
-
-The converter is based on DJI Thermal SDK R-JPEG processing rather than hard-coded decoding for one specific camera model.
-
-It may therefore work with other DJI thermal cameras that generate radiometric R-JPEG files compatible with the same DJI Thermal SDK.
-
-Compatibility with a specific camera or drone model should be confirmed using sample R-JPEG files from that device.
-
-The recommended compatibility procedure is:
-
-- obtain one or more original radiometric R-JPEG files from the target camera
-- verify that DJI Thermal SDK can decode the files
-- perform temperature conversion
-- verify the generated Float32 TIFF
-- verify required metadata
-- verify downstream software compatibility if required
-
-A device should not be considered officially supported by this project until it has been tested.
-
-## Executable packaging
-
-The application can be packaged as a Windows executable using PyInstaller.
-
-Both onedir and onefile builds have been tested during development.
-
-The onefile build produces a portable executable that can be moved and started without a local Python installation.
-
-Production build specification:
-
-DJI_Thermal_Converter_onefile.spec
-
-Build command:
-
-pyinstaller --noconfirm --clean DJI_Thermal_Converter_onefile.spec
-
-The production specification includes only the required DJI runtime files instead of packaging the entire SDK directory.
-
-The final executable was tested after being copied to a separate clean directory without access to the development project directory.
-
-## Data and repository policy
-
-Test images, generated TIFF files, development utilities, build output and other working data are not intended to be committed to the repository.
-
-The following directories and files should remain local:
-
-data/
-
-.venv/
-
-.vs/
-
-build/
-
-dist/
-
-tools_dev/
-
-__pycache__/
-
-DJI SDK development files, documentation, samples, datasets and unnecessary utilities should not be committed or included in production builds.
-
-The final application package should contain only runtime components required by the converter and permitted for redistribution.
-
-## Third-party software notices
+## Third-party software
 
 Third-party dependencies and runtime components are documented in:
 
-THIRD_PARTY_NOTICES.txt
+`THIRD_PARTY_NOTICES.txt`
 
-The project currently uses software including:
+This includes software such as:
 
 - DJI Thermal SDK runtime components
 - Python
@@ -690,51 +263,18 @@ The project currently uses software including:
 - openpyxl
 - PyInstaller
 
-Additional transitive runtime components may be included by Python packages or PyInstaller and remain subject to their respective license terms.
+## Repository policy
 
-## Project status
+Development data and generated files should remain local.
 
-- Core conversion engine: working
-- DJI SDK integration: working
-- Float32 TIFF generation: working
-- Lossless Deflate TIFF compression: working
-- Compressed TIFF pixel integrity: verified internally
-- Batch conversion: working
-- Multiple file conversion: working
-- Automatic output folder generation: working
-- Radiometric parameter-based output folder naming: working
-- Mixed source parameter detection: working
-- Manual output folder override: working
-- EXIF extraction: working
-- DJI XMP extraction: working
-- GPS preservation: working
-- Orientation preservation: working
-- Radiometric metadata extraction: working
-- Custom emissivity: working
-- Custom distance: working
-- Custom humidity: working
-- Custom reflected temperature: working
-- DJI SDK radiometric parameter override: working
-- Radiometric parameter validation: working
-- Radiometric value formatting on focus loss: working
-- Radiometric value formatting on Enter: working
-- Use source image radiometric values option: working
-- Conversion error handling: working
-- Skip / overwrite handling: working
-- Automatic TIFF validation: working
-- PASS / WARNING / FAIL validation: working
-- Unified Excel reporting: working
-- DJI reference validation: internally tested
-- Custom parameter comparison with DJI reference: internally tested
-- Agisoft Metashape metadata compatibility: tested
-- Agisoft Metashape compressed TIFF compatibility: tested
-- Agisoft Metashape alignment workflow: tested
-- DEM generation: tested
-- Thermal orthomosaic generation: tested
-- GUI: working
-- Windows executable packaging: working
-- PyInstaller onefile build: working
-- Minimal DJI runtime packaging: working
-- Standalone executable test outside development directory: working
-- Third-party notices: added
-- Automated pytest test suite: planned
+Ignored directories include:
+
+.venv/
+.vs/
+data/
+build/
+dist/
+tools_dev/
+__pycache__/
+
+The production package should contain only the files required to run the application and any required third-party notices.
