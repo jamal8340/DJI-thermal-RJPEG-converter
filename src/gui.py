@@ -57,14 +57,9 @@ class ConverterGUI:
             "DJI Thermal R-JPEG Converter v1.0.0"
         )
 
-        self.root.geometry(
-            "800x790"
-        )
-
-        self.root.minsize(
-            740,
-            700
-        )
+        # Comfortable default size: the complete workflow is visible at launch.
+        self.root.geometry("1120x740")
+        self.root.minsize(1020, 700)
 
         self.root.configure(
             bg=BG
@@ -124,6 +119,10 @@ class ConverterGUI:
             )
         )
 
+        self.use_auto_output = tk.BooleanVar(
+            value=True
+        )
+
         self.use_image_radiometry = tk.BooleanVar(
             value=True
         )
@@ -153,12 +152,11 @@ class ConverterGUI:
         style = ttk.Style()
 
         try:
-            style.theme_use(
-                "clam"
-            )
+            style.theme_use("clam")
         except tk.TclError:
             pass
 
+        # Base surfaces
         style.configure(
             "Main.TFrame",
             background=BG
@@ -170,105 +168,161 @@ class ConverterGUI:
         )
 
         style.configure(
+            "Path.TFrame",
+            background="#FBF7F0"
+        )
+
+        style.configure(
+            "Action.TFrame",
+            background="#F1E7D6"
+        )
+
+        # Typography
+        style.configure(
             "Title.TLabel",
             background=BG,
             foreground=TEXT,
-            font=(
-                "Segoe UI",
-                21,
-                "bold"
-            )
+            font=("Segoe UI", 23, "bold")
         )
 
         style.configure(
             "Subtitle.TLabel",
             background=BG,
             foreground=MUTED,
-            font=(
-                "Segoe UI",
-                10
-            )
+            font=("Segoe UI", 10)
+        )
+
+        style.configure(
+            "Version.TLabel",
+            background="#EFE3CE",
+            foreground=ACCENT_HOVER,
+            font=("Segoe UI", 9, "bold"),
+            padding=(10, 5)
         )
 
         style.configure(
             "Section.TLabel",
             background=CARD_BG,
             foreground=TEXT,
-            font=(
-                "Segoe UI",
-                10,
-                "bold"
-            )
+            font=("Segoe UI", 11, "bold")
+        )
+
+        style.configure(
+            "SectionHint.TLabel",
+            background=CARD_BG,
+            foreground=MUTED,
+            font=("Segoe UI", 9)
         )
 
         style.configure(
             "Muted.TLabel",
             background=CARD_BG,
             foreground=MUTED,
-            font=(
-                "Segoe UI",
-                9
-            )
+            font=("Segoe UI", 9)
+        )
+
+        style.configure(
+            "Path.TLabel",
+            background="#FBF7F0",
+            foreground="#4F4A43",
+            font=("Segoe UI", 9)
         )
 
         style.configure(
             "Success.TLabel",
             background=CARD_BG,
             foreground=ACCENT_HOVER,
-            font=(
-                "Segoe UI",
-                9,
-                "bold"
-            )
+            font=("Segoe UI", 9, "bold")
         )
 
         style.configure(
             "Status.TLabel",
-            background=BG,
+            background="#F1E7D6",
             foreground=MUTED,
-            font=(
-                "Segoe UI",
-                9
-            )
+            font=("Segoe UI", 9)
         )
 
         style.configure(
+            "Percent.TLabel",
+            background="#F1E7D6",
+            foreground=TEXT,
+            font=("Segoe UI", 10, "bold")
+        )
+
+        # Buttons
+        style.configure(
             "Secondary.TButton",
-            background=CARD_BG,
+            background="#FFFDF8",
             foreground=TEXT,
             bordercolor=BORDER,
-            padding=(15, 9),
-            font=(
-                "Segoe UI",
-                9,
-                "bold"
-            )
+            lightcolor=BORDER,
+            darkcolor=BORDER,
+            borderwidth=1,
+            padding=(14, 8),
+            font=("Segoe UI", 9, "bold")
+        )
+
+        style.map(
+            "Secondary.TButton",
+            background=[
+                ("active", "#F4ECDF"),
+                ("disabled", "#EEEAE3"),
+            ],
+            foreground=[
+                ("disabled", "#AAA39A"),
+            ],
+            bordercolor=[
+                ("active", "#CDBD9F"),
+            ]
         )
 
         style.configure(
             "Accent.TButton",
             background=ACCENT,
             foreground="white",
+            bordercolor=ACCENT,
+            lightcolor=ACCENT,
+            darkcolor=ACCENT,
             borderwidth=0,
-            padding=(28, 12),
-            font=(
-                "Segoe UI",
-                10,
-                "bold"
-            )
+            padding=(30, 12),
+            font=("Segoe UI", 10, "bold")
         )
 
         style.map(
             "Accent.TButton",
             background=[
-                (
-                    "active",
-                    ACCENT_HOVER
-                ),
-                (
-                    "disabled",
-                    "#C9B88D"
-                )
+                ("active", ACCENT_HOVER),
+                ("disabled", "#C9B88D"),
+            ],
+            foreground=[
+                ("disabled", "#F4EFE7"),
+            ]
+        )
+
+        # Inputs
+        style.configure(
+            "Field.TEntry",
+            fieldbackground="#FFFFFF",
+            foreground=TEXT,
+            insertcolor=TEXT,
+            bordercolor=BORDER,
+            lightcolor=BORDER,
+            darkcolor=BORDER,
+            borderwidth=1,
+            padding=(8, 7)
+        )
+
+        style.map(
+            "Field.TEntry",
+            fieldbackground=[
+                ("disabled", "#F2EEE7"),
+                ("readonly", "#F2EEE7"),
+            ],
+            foreground=[
+                ("disabled", "#777168"),
+            ],
+            bordercolor=[
+                ("focus", ACCENT),
             ]
         )
 
@@ -276,22 +330,31 @@ class ConverterGUI:
             "Custom.TCheckbutton",
             background=CARD_BG,
             foreground=MUTED,
-            font=(
-                "Segoe UI",
-                9
-            )
+            font=("Segoe UI", 9),
+            padding=0
+        )
+
+        style.map(
+            "Custom.TCheckbutton",
+            background=[
+                ("active", CARD_BG),
+            ],
+            foreground=[
+                ("active", TEXT),
+            ]
         )
 
         style.configure(
             "Custom.Horizontal.TProgressbar",
-            troughcolor="#EAE1D4",
-            background=ACCENT
+            troughcolor="#E4D9C8",
+            background=ACCENT,
+            bordercolor="#E4D9C8",
+            lightcolor=ACCENT,
+            darkcolor=ACCENT,
+            thickness=10
         )
 
-    def create_card(
-        self,
-        parent
-    ):
+    def create_card(self, parent):
         card = tk.Frame(
             parent,
             bg=CARD_BG,
@@ -300,28 +363,42 @@ class ConverterGUI:
             bd=0
         )
 
-        card.pack(
-            fill="x",
-            pady=(0, 15)
-        )
-
         inner = ttk.Frame(
             card,
             style="Card.TFrame",
-            padding=17
+            padding=(20, 18)
         )
 
         inner.pack(
-            fill="x"
+            fill="both",
+            expand=True
         )
 
-        return inner
+        return card, inner
+
+    def create_section_header(self, parent, title, hint):
+        ttk.Label(
+            parent,
+            text=title,
+            style="Section.TLabel"
+        ).pack(
+            anchor="w"
+        )
+
+        ttk.Label(
+            parent,
+            text=hint,
+            style="SectionHint.TLabel"
+        ).pack(
+            anchor="w",
+            pady=(3, 12)
+        )
 
     def create_widgets(self):
         container = ttk.Frame(
             self.root,
             style="Main.TFrame",
-            padding=30
+            padding=(28, 24)
         )
 
         container.pack(
@@ -330,59 +407,141 @@ class ConverterGUI:
         )
 
         # HEADER
-        ttk.Label(
+        header = ttk.Frame(
             container,
-            text=(
-                "DJI Thermal R-JPEG Converter v1.0.0"
-            ),
+            style="Main.TFrame"
+        )
+        header.pack(
+            fill="x",
+            pady=(0, 20)
+        )
+
+        title_row = ttk.Frame(
+            header,
+            style="Main.TFrame"
+        )
+        title_row.pack(
+            fill="x"
+        )
+
+        title_group = ttk.Frame(
+            title_row,
+            style="Main.TFrame"
+        )
+        title_group.pack(
+            side="left",
+            fill="x",
+            expand=True
+        )
+
+        # A restrained gold accent gives the header a stronger product identity.
+        accent_bar = tk.Frame(
+            title_group,
+            bg=ACCENT,
+            width=4,
+            height=48
+        )
+        accent_bar.pack(
+            side="left",
+            padx=(0, 14)
+        )
+        accent_bar.pack_propagate(False)
+
+        title_text = ttk.Frame(
+            title_group,
+            style="Main.TFrame"
+        )
+        title_text.pack(
+            side="left"
+        )
+
+        ttk.Label(
+            title_text,
+            text="DJI Thermal R-JPEG Converter v1.0.0",
             style="Title.TLabel"
         ).pack(
             anchor="w"
         )
 
         ttk.Label(
-            container,
+            title_text,
             text=(
-                "Convert DJI radiometric images "
-                "to Float32 temperature TIFF files."
+                "Radiometric DJI imagery → compressed Float32 "
+                "temperature TIFF"
             ),
             style="Subtitle.TLabel"
         ).pack(
             anchor="w",
-            pady=(5, 26)
+            pady=(3, 0)
+        )
+
+        # INPUT + OUTPUT: use the width instead of stacking two large empty cards.
+        io_grid = ttk.Frame(
+            container,
+            style="Main.TFrame"
+        )
+        io_grid.pack(
+            fill="x",
+            pady=(0, 14)
+        )
+
+        io_grid.columnconfigure(0, weight=1, uniform="io")
+        io_grid.columnconfigure(1, weight=1, uniform="io")
+
+        input_outer, input_card = self.create_card(io_grid)
+        input_outer.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+            padx=(0, 7)
+        )
+
+        output_outer, output_card = self.create_card(io_grid)
+        output_outer.grid(
+            row=0,
+            column=1,
+            sticky="nsew",
+            padx=(7, 0)
         )
 
         # INPUT
-        input_card = self.create_card(
-            container
+        self.create_section_header(
+            input_card,
+            "Input images",
+            "Choose individual DJI R-JPEG files or an entire folder."
         )
 
-        ttk.Label(
+        input_path_box = tk.Frame(
             input_card,
-            text="Input images",
-            style="Section.TLabel"
-        ).pack(
-            anchor="w"
+            bg="#FBF7F0",
+            highlightbackground="#E8E0D4",
+            highlightthickness=1,
+            bd=0
+        )
+        input_path_box.pack(
+            fill="x",
+            pady=(0, 12)
         )
 
         self.input_path_label = ttk.Label(
-            input_card,
+            input_path_box,
             text="No input selected",
-            style="Muted.TLabel"
+            style="Path.TLabel",
+            wraplength=430,
+            justify="left"
         )
-
         self.input_path_label.pack(
-            anchor="w",
-            pady=(5, 12)
+            fill="x",
+            padx=11,
+            pady=9
         )
 
         input_row = ttk.Frame(
             input_card,
             style="Card.TFrame"
         )
-
         input_row.pack(
-            anchor="w"
+            fill="x"
         )
 
         ttk.Button(
@@ -392,7 +551,7 @@ class ConverterGUI:
             command=self.select_images
         ).pack(
             side="left",
-            padx=(0, 10)
+            padx=(0, 8)
         )
 
         ttk.Button(
@@ -406,14 +565,12 @@ class ConverterGUI:
 
         ttk.Checkbutton(
             input_card,
-            text=(
-                "Overwrite existing TIFF files"
-            ),
+            text="Overwrite existing TIFF files",
             variable=self.overwrite_existing,
             style="Custom.TCheckbutton"
         ).pack(
             anchor="w",
-            pady=(10, 0)
+            pady=(12, 0)
         )
 
         self.input_status_label = ttk.Label(
@@ -421,63 +578,71 @@ class ConverterGUI:
             textvariable=self.input_status,
             style="Muted.TLabel"
         )
-
         self.input_status_label.pack(
             anchor="w",
             pady=(8, 0)
         )
 
         # OUTPUT
-        output_card = self.create_card(
-            container
+        self.create_section_header(
+            output_card,
+            "Output folder",
+            "Use the suggested folder or switch to a custom location."
+        )
+
+        output_path_box = tk.Frame(
+            output_card,
+            bg="#FBF7F0",
+            highlightbackground="#E8E0D4",
+            highlightthickness=1,
+            bd=0
+        )
+        output_path_box.pack(
+            fill="x",
+            pady=(0, 12)
         )
 
         ttk.Label(
-            output_card,
-            text="Output folder",
-            style="Section.TLabel"
-        ).pack(
-            anchor="w"
-        )
-
-        ttk.Label(
-            output_card,
+            output_path_box,
             textvariable=self.output_path,
-            style="Muted.TLabel"
+            style="Path.TLabel",
+            wraplength=430,
+            justify="left"
+        ).pack(
+            fill="x",
+            padx=11,
+            pady=9
+        )
+
+        ttk.Checkbutton(
+            output_card,
+            text="Use automatic output folder",
+            variable=self.use_auto_output,
+            style="Custom.TCheckbutton",
+            command=self.toggle_output_mode
         ).pack(
             anchor="w",
-            pady=(5, 12)
+            pady=(0, 12)
         )
 
         output_buttons = ttk.Frame(
             output_card,
             style="Card.TFrame"
         )
-
         output_buttons.pack(
-            anchor="w"
+            fill="x"
         )
 
-        ttk.Button(
+        self.change_output_button = ttk.Button(
             output_buttons,
             text="Change output folder",
             style="Secondary.TButton",
-            command=self.select_output
-        ).pack(
-            side="left",
-            padx=(0, 10)
-        )
-
-        self.open_output_button = ttk.Button(
-            output_buttons,
-            text="Open output folder",
-            style="Secondary.TButton",
-            command=self.open_output_folder,
+            command=self.select_output,
             state="disabled"
         )
-
-        self.open_output_button.pack(
-            side="left"
+        self.change_output_button.pack(
+            side="left",
+            padx=(0, 8)
         )
 
         self.output_status_label = ttk.Label(
@@ -485,80 +650,100 @@ class ConverterGUI:
             textvariable=self.output_status,
             style="Success.TLabel"
         )
-
         self.output_status_label.pack(
             anchor="w",
-            pady=(10, 0)
+            pady=(12, 0)
         )
 
         # RADIOMETRIC PARAMETERS
-        radiometry_card = self.create_card(
-            container
+        radiometry_outer, radiometry_card = self.create_card(container)
+        radiometry_outer.pack(
+            fill="x",
+            pady=(0, 14)
+        )
+
+        radiometry_header = ttk.Frame(
+            radiometry_card,
+            style="Card.TFrame"
+        )
+        radiometry_header.pack(
+            fill="x"
+        )
+
+        radiometry_title = ttk.Frame(
+            radiometry_header,
+            style="Card.TFrame"
+        )
+        radiometry_title.pack(
+            side="left",
+            fill="x",
+            expand=True
         )
 
         ttk.Label(
-            radiometry_card,
+            radiometry_title,
             text="Radiometric parameters",
             style="Section.TLabel"
         ).pack(
             anchor="w"
         )
 
+        ttk.Label(
+            radiometry_title,
+            text="Control how the DJI SDK calculates the temperature raster.",
+            style="SectionHint.TLabel"
+        ).pack(
+            anchor="w",
+            pady=(3, 0)
+        )
+
         ttk.Checkbutton(
-            radiometry_card,
+            radiometry_header,
             text="Use values stored in each image",
             variable=self.use_image_radiometry,
             style="Custom.TCheckbutton",
             command=self.toggle_radiometry_fields
         ).pack(
-            anchor="w",
-            pady=(7, 10)
-        )
-
-        ttk.Label(
-            radiometry_card,
-            text=(
-                "Checked: each image uses its own stored values. "
-                "Fields show a preview from the first selected image. "
-                "Uncheck to apply the same custom values to all images."
-            ),
-            style="Muted.TLabel"
-        ).pack(
-            anchor="w",
-            pady=(0, 10)
+            side="right",
+            anchor="n",
+            pady=(2, 0)
         )
 
         radiometry_grid = ttk.Frame(
             radiometry_card,
             style="Card.TFrame"
         )
-
         radiometry_grid.pack(
-            fill="x"
+            fill="x",
+            pady=(16, 0)
         )
 
         labels = [
             (
-                "Emissivity (0.10–1.00)",
+                "Emissivity",
+                "0.10–1.00",
                 self.emissivity_value
             ),
             (
-                "Distance [m] (1–25)",
+                "Distance",
+                "m · 1–25",
                 self.distance_value
             ),
             (
-                "Humidity [%] (1–100)",
+                "Humidity",
+                "% · 1–100",
                 self.humidity_value
             ),
             (
-                "Reflected temperature [°C] (-40–100)",
+                "Reflected temperature",
+                "°C · -40–100",
                 self.reflection_value
             ),
         ]
 
         self.radiometry_entries = []
 
-        for column, (label_text, variable) in enumerate(labels):
+        for column, (label_text, range_text, variable) in enumerate(labels):
             field = ttk.Frame(
                 radiometry_grid,
                 style="Card.TFrame"
@@ -568,26 +753,43 @@ class ConverterGUI:
                 row=0,
                 column=column,
                 sticky="ew",
-                padx=(0, 10 if column < 3 else 0)
+                padx=(0, 12 if column < 3 else 0)
             )
 
             radiometry_grid.columnconfigure(
                 column,
-                weight=1
+                weight=1,
+                uniform="radiometry"
+            )
+
+            label_row = ttk.Frame(
+                field,
+                style="Card.TFrame"
+            )
+            label_row.pack(
+                fill="x"
             )
 
             ttk.Label(
-                field,
+                label_row,
                 text=label_text,
+                style="SectionHint.TLabel"
+            ).pack(
+                side="left"
+            )
+
+            ttk.Label(
+                label_row,
+                text=range_text,
                 style="Muted.TLabel"
             ).pack(
-                anchor="w"
+                side="right"
             )
 
             entry = ttk.Entry(
                 field,
                 textvariable=variable,
-                width=18
+                style="Field.TEntry"
             )
 
             entry.bind(
@@ -606,56 +808,98 @@ class ConverterGUI:
 
             entry.pack(
                 fill="x",
-                pady=(4, 0)
+                pady=(6, 0)
             )
 
-            self.radiometry_entries.append(
-                entry
-            )
+            self.radiometry_entries.append(entry)
 
         self.toggle_radiometry_fields()
 
-        # CONVERT
-        self.convert_button = ttk.Button(
+        # CONVERSION / PROGRESS
+        action_outer = tk.Frame(
             container,
+            bg="#F1E7D6",
+            highlightbackground="#DCC9AA",
+            highlightthickness=1,
+            bd=0
+        )
+        action_outer.pack(
+            fill="x"
+        )
+
+        action = ttk.Frame(
+            action_outer,
+            style="Action.TFrame",
+            padding=(20, 16)
+        )
+        action.pack(
+            fill="both",
+            expand=True
+        )
+
+        # Main conversion action. Keep the CTA visually central in the workflow.
+        self.convert_button = ttk.Button(
+            action,
             text="Convert images",
             style="Accent.TButton",
             command=self.start_conversion
         )
-
         self.convert_button.pack(
-            pady=(5, 18)
+            anchor="center",
+            pady=(0, 14)
+        )
+
+        progress_area = ttk.Frame(
+            action,
+            style="Action.TFrame"
+        )
+        progress_area.pack(
+            fill="x",
+            padx=(90, 90)
         )
 
         self.progress = ttk.Progressbar(
-            container,
+            progress_area,
             mode="determinate",
             maximum=100,
             value=0,
-            style=(
-                "Custom.Horizontal.TProgressbar"
-            )
+            style="Custom.Horizontal.TProgressbar"
         )
-
         self.progress.pack(
-            fill="x",
-            pady=(0, 8)
+            fill="x"
         )
 
         self.progress_percent = ttk.Label(
-            container,
+            progress_area,
             text="0%",
-            style="Status.TLabel"
+            style="Percent.TLabel",
+            anchor="center"
+        )
+        self.progress_percent.pack(
+            pady=(7, 0)
         )
 
-        self.progress_percent.pack()
-
         ttk.Label(
-            container,
+            progress_area,
             textvariable=self.main_status,
-            style="Status.TLabel"
+            style="Status.TLabel",
+            anchor="center"
         ).pack(
-            pady=(5, 0)
+            fill="x",
+            pady=(4, 0)
+        )
+
+
+        self.open_output_button = ttk.Button(
+            action,
+            text="Open output folder",
+            style="Secondary.TButton",
+            command=self.open_output_folder,
+            state="disabled"
+        )
+        self.open_output_button.pack(
+            anchor="center",
+            pady=(12, 0)
         )
 
     def select_images(self):
@@ -712,7 +956,8 @@ class ConverterGUI:
             style="Success.TLabel"
         )
 
-        self.output_manually_selected = False
+        if self.use_auto_output.get():
+            self.output_manually_selected = False
 
         self.load_source_radiometry(
             self.selected_files[0]
@@ -750,7 +995,8 @@ class ConverterGUI:
             text=str(folder_path)
         )
 
-        self.output_manually_selected = False
+        if self.use_auto_output.get():
+            self.output_manually_selected = False
 
         if files:
             self.input_status.set(
@@ -778,6 +1024,31 @@ class ConverterGUI:
             )
 
             self.update_auto_output_path()
+
+    def toggle_output_mode(self):
+        if self.use_auto_output.get():
+            self.output_manually_selected = False
+            self.change_output_button.config(
+                state="disabled"
+            )
+            self.update_auto_output_path()
+
+            if self.selection_mode is None:
+                self.output_status.set(
+                    "✓ Automatic output folder enabled"
+                )
+            else:
+                self.output_status.set(
+                    "✓ Automatic output folder selected"
+                )
+
+        else:
+            self.change_output_button.config(
+                state="normal"
+            )
+            self.output_status.set(
+                "Custom output folder mode — choose a location"
+            )
 
     def select_output(self):
         folder = filedialog.askdirectory(
@@ -994,6 +1265,9 @@ class ConverterGUI:
         )
 
     def update_auto_output_path(self):
+        if not self.use_auto_output.get():
+            return
+
         if self.output_manually_selected:
             return
 
@@ -1241,7 +1515,7 @@ class ConverterGUI:
             )
             return
 
-        if not self.output_manually_selected:
+        if self.use_auto_output.get():
             self.update_auto_output_path()
 
         output_dir = (
