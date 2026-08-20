@@ -1,0 +1,113 @@
+DJI Thermal R-JPEG Converter
+Legal and Third-Party Software Notices
+
+This application uses third-party software components and runtime libraries.
+
+DJI THERMAL SDK
+---------------
+Portions copyright (c) 2014–Present DJI. All rights reserved.
+The application uses DJI Thermal SDK runtime components for radiometric
+DJI R-JPEG processing and temperature calculation.
+
+The production build includes the following DJI SDK runtime files:
+
+- libdirp.dll
+- libv_dirp.dll
+- libv_girp.dll
+- libv_iirp.dll
+- libv_cirp.dll
+- libv_hirp.dll
+- libv_list.ini
+- MicroIA_Release_x64.dll
+- MicroJPEG_Release_x64.dll
+- MicroTA_Release_x64.dll
+- libexif.dll
+- libintl-8.dll
+- libiconv-2.dll
+
+According to the license documentation supplied with the DJI Thermal SDK,
+files whose names begin with "libv_" and have .dll, .so or .lib extensions
+must be used together with libdirp and may not be used independently or
+for other purposes.
+
+Certain portions of the DJI Thermal SDK are licensed under the MIT License.
+Other portions are subject to the DJI SDK End User License Agreement (EULA).
+
+The original DJI Thermal SDK license notice and DJI SDK End User License
+Agreement are provided separately in the licenses directory.
+
+The DJI Thermal SDK also includes or uses third-party open-source software,
+including:
+
+- SimpleIni — MIT License
+- TinyEXIF — BSD 2-Clause License
+- libexif — LGPL 2.1
+- libiconv — LGPL 2.1
+- libintl — LGPL 2.1
+
+
+PYTHON SOFTWARE
+---------------
+
+The application is packaged with components of the Python runtime and
+standard library.
+
+Python is distributed under the Python Software Foundation License.
+
+
+NUMPY
+-----
+
+Version used during build: 2.0.2
+
+NumPy is distributed under the BSD 3-Clause License.
+
+Binary distributions may include additional third-party numerical and
+compiler runtime components subject to their respective licenses.
+
+
+PILLOW
+------
+
+Version used during build: 11.3.0
+
+Pillow is distributed under the MIT-CMU License.
+
+
+TIFFFILE
+--------
+
+Version used during build: 2024.8.30
+
+tifffile is distributed under the BSD 3-Clause License.
+
+
+OPENPYXL
+--------
+
+Version used during build: 3.1.5
+
+openpyxl is distributed under the MIT License.
+
+
+PYINSTALLER
+-----------
+
+Version used during build: 6.22.2
+
+PyInstaller is distributed under GPLv2-or-later with a special exception
+that permits applications built with PyInstaller to be distributed under
+other licenses, subject to the licenses of bundled components.
+
+
+ADDITIONAL COMPONENTS
+---------------------
+
+Additional runtime components may be included through Python packages,
+binary wheels or the application packaging process.
+
+All third-party components remain subject to their respective copyright
+notices and license terms.
+
+This file is provided for attribution and informational purposes and does
+not replace the original license terms of any third-party software.
