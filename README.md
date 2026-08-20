@@ -1,1 +1,1 @@
-# DJI-thermal-RJPEG-converter
+# Thermal_RJPEG_Converter
