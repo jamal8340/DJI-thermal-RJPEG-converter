@@ -73,7 +73,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="DJI_Thermal_Converter",
+    name="Thermal_RJPEG_Converter",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

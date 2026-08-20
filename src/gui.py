@@ -37,7 +37,7 @@ class ConverterGUI:
             self.root.iconphoto(True, self.app_icon)
         except Exception as exc:
             print(f'Could not load window icon: {exc}')
-        self.root.title('DJI Thermal R-JPEG Converter v1.0.0')
+        self.root.title('Thermal R-JPEG Converter v1.0.0')
         self.root.geometry('1120x740')
         self.root.minsize(1020, 700)
         self.root.configure(bg=BG)
@@ -120,7 +120,7 @@ class ConverterGUI:
         accent_bar.pack_propagate(False)
         title_text = ttk.Frame(title_group, style='Main.TFrame')
         title_text.pack(side='left')
-        ttk.Label(title_text, text='DJI Thermal R-JPEG Converter v1.0.0', style='Title.TLabel').pack(anchor='w')
+        ttk.Label(title_text, text='Thermal R-JPEG Converter', style='Title.TLabel').pack(anchor='w')
         ttk.Label(title_text, text='Radiometric DJI imagery → compressed Float32 temperature TIFF', style='Subtitle.TLabel').pack(anchor='w', pady=(3, 0))
         io_grid = ttk.Frame(container, style='Main.TFrame')
         io_grid.pack(fill='x', pady=(0, 14))
