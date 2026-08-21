@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-
 from validator import validate_files
 
 

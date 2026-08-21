@@ -1,10 +1,7 @@
-﻿# Portions copyright (c) 2014–Present DJI. All rights reserved.
-
-import ctypes
+﻿import ctypes
 import os
 import sys
 from pathlib import Path
-
 import numpy as np
 
 

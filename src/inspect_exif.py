@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from metadata import extract_dji_xmp, extract_exif
 
 

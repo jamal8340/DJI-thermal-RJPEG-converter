@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from dji_sdk import DJIThermalSDK, get_default_dll_path
 
 

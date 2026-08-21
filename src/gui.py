@@ -167,7 +167,7 @@ class ConverterGUI:
         ttk.Checkbutton(radiometry_header, text='Use values stored in each image', variable=self.use_image_radiometry, style='Custom.TCheckbutton', command=self.toggle_radiometry_fields).pack(side='right', anchor='n', pady=(2, 0))
         radiometry_grid = ttk.Frame(radiometry_card, style='Card.TFrame')
         radiometry_grid.pack(fill='x', pady=(16, 0))
-        labels = [('Emissivity', '0.10–1.00', self.emissivity_value), ('Distance', '1–25 m', self.distance_value), ('Humidity', '1–100 %', self.humidity_value), ('Reflected temperature', '−40–100 °C', self.reflection_value)]
+        labels = [('Emissivity', '0.10-1.00', self.emissivity_value), ('Distance', '1-25 m', self.distance_value), ('Humidity', '1-100 %', self.humidity_value), ('Reflected temperature', '-40-100 °C', self.reflection_value)]
         self.radiometry_entries = []
         for column, (label_text, range_text, variable) in enumerate(labels):
             field = ttk.Frame(radiometry_grid, style='Card.TFrame')
